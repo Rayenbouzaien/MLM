@@ -100,4 +100,14 @@ describe("session lifecycle", () => {
     await agent.post("/api/auth/logout").expect(200);
     await agent.get("/api/auth/me").expect(401);
   });
+
+  it("rejects an already-issued session after the team is banned", async () => {
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ teamName: "Session Revoked", password: "password123" }).expect(201);
+    await pool.query("UPDATE teams SET banned = true WHERE team_name = 'Session Revoked'");
+
+    const response = await agent.get("/api/auth/me").expect(403);
+    expect(response.body.error).toMatch(/suspended/i);
+    expect(response.headers["set-cookie"]).toBeDefined();
+  });
 });

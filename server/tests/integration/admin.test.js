@@ -33,6 +33,12 @@ describe("POST /api/admin/login", () => {
     // Proven by being able to hit an admin-only route afterward.
     await agent.get("/api/admin/teams").expect(200);
   });
+
+  it("confirms the current admin session without exposing credentials", async () => {
+    await request(app).get("/api/admin/me").expect(401);
+    const agent = await adminAgent();
+    await agent.get("/api/admin/me").expect(200, { admin: true });
+  });
 });
 
 describe("Challenges CRUD authorization", () => {
@@ -93,6 +99,19 @@ describe("Team management", () => {
     const res = await agent.get("/api/admin/teams").expect(200);
     expect(res.body.teams).toHaveLength(1);
     expect(res.body.teams[0].team_name).toBe("Neural Racers");
+  });
+
+  it("admin can add a team without becoming that team", async () => {
+    const admin = await adminAgent();
+    const created = await admin
+      .post("/api/admin/teams")
+      .send({ teamName: "Pit Lane Crew", password: "password123" })
+      .expect(201);
+
+    expect(created.body.team.teamName).toBe("Pit Lane Crew");
+    await admin.get("/api/admin/teams").expect(200);
+    const publicTeams = await request(app).get("/api/teams").expect(200);
+    expect(publicTeams.body.teams.map((team) => team.team_name)).toContain("Pit Lane Crew");
   });
 
   it("admin can ban a team, and the ban actually blocks their login", async () => {

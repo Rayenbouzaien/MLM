@@ -2,7 +2,8 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { pool } from "../db.js";
-import { setSessionCookie, clearSessionCookie, requireAdmin, timingSafeStringEqual } from "../auth.js";
+import { setSessionCookie, clearSessionCookie, hashPassword, requireAdmin, timingSafeStringEqual } from "../auth.js";
+import { emit } from "../live.js";
 
 const router = Router();
 
@@ -36,6 +37,10 @@ router.post("/logout", (req, res) => {
   res.json({ success: true });
 });
 
+router.get("/me", requireAdmin, (req, res) => {
+  res.json({ admin: true });
+});
+
 // GET /api/admin/teams — every team, plus whether they've submitted.
 router.get("/teams", requireAdmin, async (req, res) => {
   const result = await pool.query(
@@ -48,6 +53,34 @@ router.get("/teams", requireAdmin, async (req, res) => {
   res.json({ teams: result.rows });
 });
 
+const teamCredentialsSchema = z.object({
+  teamName: z.string().trim().min(2).max(100),
+  password: z.string().min(8).max(200),
+});
+
+router.post("/teams", requireAdmin, async (req, res, next) => {
+  const parsed = teamCredentialsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid team name or password." });
+  }
+  try {
+    const passwordHash = await hashPassword(parsed.data.password);
+    const result = await pool.query(
+      "INSERT INTO teams (team_name, password_hash) VALUES ($1, $2) RETURNING id, team_name",
+      [parsed.data.teamName, passwordHash],
+    );
+    const team = result.rows[0];
+    emit({ type: "team_joined", teamName: team.team_name, at: new Date().toISOString() });
+    emit({ type: "data_changed", resource: "teams", at: new Date().toISOString() });
+    return res.status(201).json({ team: { id: team.id, teamName: team.team_name } });
+  } catch (err) {
+    if (err.code === "23505") {
+      return res.status(409).json({ error: "That team name is already taken." });
+    }
+    return next(err);
+  }
+});
+
 router.patch("/teams/:id/ban", requireAdmin, async (req, res) => {
   const parsed = z.object({ banned: z.boolean() }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Body must be { banned: boolean }" });
@@ -56,12 +89,18 @@ router.patch("/teams/:id/ban", requireAdmin, async (req, res) => {
     [parsed.data.banned, req.params.id],
   );
   if (result.rows.length === 0) return res.status(404).json({ error: "Team not found" });
+  emit({ type: "data_changed", resource: "teams", at: new Date().toISOString() });
+  if (result.rows[0].banned) {
+    emit({ type: "team_access_revoked", teamId: String(result.rows[0].id), at: new Date().toISOString() });
+  }
   res.json({ team: result.rows[0] });
 });
 
 router.delete("/teams/:id", requireAdmin, async (req, res) => {
   const result = await pool.query("DELETE FROM teams WHERE id = $1 RETURNING id", [req.params.id]);
   if (result.rows.length === 0) return res.status(404).json({ error: "Team not found" });
+  emit({ type: "team_access_revoked", teamId: String(result.rows[0].id), at: new Date().toISOString() });
+  emit({ type: "data_changed", resource: "teams", at: new Date().toISOString() });
   res.json({ success: true });
 });
 

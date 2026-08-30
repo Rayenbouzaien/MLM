@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
+import { pool } from "./db.js";
 
 // Fail fast, not silently: a hackathon submission system with a weak or
 // missing session secret is a security measure, and ponytail explicitly
@@ -66,13 +67,23 @@ export function clearSessionCookie(res) {
   res.clearCookie(COOKIE_NAME, { ...COOKIE_OPTS, maxAge: undefined });
 }
 
-export function requireTeam(req, res, next) {
+export async function requireTeam(req, res, next) {
   const claims = verifySession(req.cookies?.[COOKIE_NAME]);
   if (!claims || claims.role !== "team") {
     return res.status(401).json({ error: "Not logged in." });
   }
-  req.team = { id: claims.teamId, teamName: claims.teamName };
-  next();
+  try {
+    const result = await pool.query("SELECT id, team_name, banned FROM teams WHERE id = $1", [claims.teamId]);
+    const team = result.rows[0];
+    if (!team || team.banned) {
+      clearSessionCookie(res);
+      return res.status(403).json({ error: "This team has been suspended. Contact an organizer." });
+    }
+    req.team = { id: team.id, teamName: team.team_name };
+    return next();
+  } catch (err) {
+    return next(err);
+  }
 }
 
 export function requireAdmin(req, res, next) {
