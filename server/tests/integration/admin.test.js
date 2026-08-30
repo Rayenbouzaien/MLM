@@ -1,0 +1,132 @@
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from "@jest/globals";
+import request from "supertest";
+import { createApp } from "../../src/app.js";
+import { pool, runMigrations } from "../../src/db.js";
+
+const app = createApp();
+
+beforeAll(async () => {
+  await runMigrations();
+});
+
+beforeEach(async () => {
+  await pool.query("TRUNCATE teams, submissions, challenges RESTART IDENTITY CASCADE");
+});
+
+afterAll(async () => {
+  await pool.end();
+});
+
+async function adminAgent() {
+  const agent = request.agent(app);
+  await agent.post("/api/admin/login").send({ password: process.env.ADMIN_PASSWORD }).expect(200);
+  return agent;
+}
+
+describe("POST /api/admin/login", () => {
+  it("rejects a wrong password", async () => {
+    await request(app).post("/api/admin/login").send({ password: "not-it" }).expect(401);
+  });
+
+  it("accepts the correct password and sets a session", async () => {
+    const agent = await adminAgent();
+    // Proven by being able to hit an admin-only route afterward.
+    await agent.get("/api/admin/teams").expect(200);
+  });
+});
+
+describe("Challenges CRUD authorization", () => {
+  it("GET is public", async () => {
+    await request(app).get("/api/challenges").expect(200);
+  });
+
+  it("POST requires admin", async () => {
+    await request(app)
+      .post("/api/challenges")
+      .send({ title: "X", description: "Y" })
+      .expect(401);
+  });
+
+  it("admin can create, update, and delete a challenge", async () => {
+    const agent = await adminAgent();
+
+    const created = await agent
+      .post("/api/challenges")
+      .send({ title: "Predictive Analytics", description: "Build ML models.", color: "#00D2D2" })
+      .expect(201);
+    const id = created.body.challenge.id;
+
+    const updated = await agent
+      .patch(`/api/challenges/${id}`)
+      .send({ title: "Predictive Analytics 2.0" })
+      .expect(200);
+    expect(updated.body.challenge.title).toBe("Predictive Analytics 2.0");
+
+    const list = await request(app).get("/api/challenges").expect(200);
+    expect(list.body.challenges).toHaveLength(1);
+
+    await agent.delete(`/api/challenges/${id}`).expect(200);
+    const listAfter = await request(app).get("/api/challenges").expect(200);
+    expect(listAfter.body.challenges).toHaveLength(0);
+  });
+
+  it("rejects an invalid hex color", async () => {
+    const agent = await adminAgent();
+    await agent
+      .post("/api/challenges")
+      .send({ title: "X", description: "Y", color: "not-a-color" })
+      .expect(400);
+  });
+});
+
+describe("Team management", () => {
+  beforeEach(async () => {
+    await request(app).post("/api/auth/register").send({ teamName: "Neural Racers", password: "password123" });
+  });
+
+  it("GET /api/admin/teams requires admin", async () => {
+    await request(app).get("/api/admin/teams").expect(401);
+  });
+
+  it("admin can list teams", async () => {
+    const agent = await adminAgent();
+    const res = await agent.get("/api/admin/teams").expect(200);
+    expect(res.body.teams).toHaveLength(1);
+    expect(res.body.teams[0].team_name).toBe("Neural Racers");
+  });
+
+  it("admin can ban a team, and the ban actually blocks their login", async () => {
+    const agent = await adminAgent();
+    const { rows } = await pool.query("SELECT id FROM teams WHERE team_name = 'Neural Racers'");
+    const teamId = rows[0].id;
+
+    await agent.patch(`/api/admin/teams/${teamId}/ban`).send({ banned: true }).expect(200);
+
+    await request(app)
+      .post("/api/auth/login")
+      .send({ teamName: "Neural Racers", password: "password123" })
+      .expect(403);
+  });
+
+  it("admin can delete a team", async () => {
+    const agent = await adminAgent();
+    const { rows } = await pool.query("SELECT id FROM teams WHERE team_name = 'Neural Racers'");
+    await agent.delete(`/api/admin/teams/${rows[0].id}`).expect(200);
+
+    const after = await pool.query("SELECT * FROM teams");
+    expect(after.rows).toHaveLength(0);
+  });
+
+  it("deleting a team also removes their submission (cascade)", async () => {
+    const teamAgent = request.agent(app);
+    await teamAgent.post("/api/auth/login").send({ teamName: "Neural Racers", password: "password123" });
+    await teamAgent.post("/api/submissions").send({ githubUrl: "https://github.com/neural/racers" }).expect(200);
+
+    const admin = await adminAgent();
+    const { rows } = await pool.query("SELECT id FROM teams WHERE team_name = 'Neural Racers'");
+    await admin.delete(`/api/admin/teams/${rows[0].id}`).expect(200);
+
+    const subs = await pool.query("SELECT * FROM submissions");
+    expect(subs.rows).toHaveLength(0);
+  });
+});

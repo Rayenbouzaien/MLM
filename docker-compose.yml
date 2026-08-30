@@ -1,0 +1,98 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gridlock
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+    ports:
+      - "127.0.0.1:5432:5432" # localhost only — see security note on adminer below
+    volumes:
+      - gridlock_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gridlock"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-devpassword}@db:5432/gridlock
+      PGSSL: "false"
+      PGPOOL_MAX: ${PGPOOL_MAX:-15}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8443}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-32chars}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-dev-admin-pass}
+      PORT: 4000
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      # Read client-side by the browser, so this must be the URL the
+      # browser itself can reach — the host-published API port, not the
+      # in-network "api" hostname the containers use to talk to each other.
+      VITE_API_URL: http://localhost:4000
+      PORT: 8443
+    ports:
+      - "8443:8443"
+    volumes:
+      # Live-edit source on the host and see it reflected via Vite's HMR
+      # without rebuilding the image. The anonymous volume on
+      # node_modules keeps the container's own install from being
+      # shadowed by the host bind mount.
+      - ./frontend:/app
+      - /app/node_modules
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:8443').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional: a lightweight web UI for browsing the database, handy for
+  # eyeballing submissions during the event without curling the admin API.
+  # SECURITY: bound to 127.0.0.1 only (not 0.0.0.0) — Adminer has no
+  # login of its own beyond your Postgres password, and the default dev
+  # password here is weak. Without this restriction, anyone on the same
+  # venue WiFi as you could reach it. Remove this whole block if you
+  # don't want it at all — nothing else depends on it.
+  adminer:
+    image: adminer:4
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "127.0.0.1:8081:8080"
+
+volumes:
+  gridlock_pg_data:

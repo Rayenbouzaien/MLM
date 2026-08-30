@@ -1,0 +1,6 @@
+node_modules/
+.env
+*.log
+# .env.test is intentionally NOT ignored — it only points at a local
+# throwaway test DB with a fake password, and keeping it in the repo
+# lets `npm test` work out of the box for anyone who clones this.
