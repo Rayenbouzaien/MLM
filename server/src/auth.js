@@ -15,7 +15,11 @@ if (!JWT_SECRET || JWT_SECRET.length < 16) {
   );
 }
 
-const COOKIE_NAME = "session";
+const COOKIE_NAMES = {
+  team: "team_session",
+  admin: "admin_session",
+};
+const LEGACY_COOKIE_NAME = "session";
 const TOKEN_TTL = "12h";
 
 // Cross-site cookies (Vercel frontend + Render API, different domains)
@@ -60,15 +64,17 @@ function verifySession(token) {
 }
 
 export function setSessionCookie(res, payload) {
-  res.cookie(COOKIE_NAME, signSession(payload), COOKIE_OPTS);
+  res.cookie(COOKIE_NAMES[payload.role], signSession(payload), COOKIE_OPTS);
 }
 
-export function clearSessionCookie(res) {
-  res.clearCookie(COOKIE_NAME, { ...COOKIE_OPTS, maxAge: undefined });
+export function clearSessionCookie(res, role) {
+  if (role) res.clearCookie(COOKIE_NAMES[role], { ...COOKIE_OPTS, maxAge: undefined });
+  else Object.values(COOKIE_NAMES).forEach((name) => res.clearCookie(name, { ...COOKIE_OPTS, maxAge: undefined }));
+  res.clearCookie(LEGACY_COOKIE_NAME, { ...COOKIE_OPTS, maxAge: undefined });
 }
 
 export async function requireTeam(req, res, next) {
-  const claims = verifySession(req.cookies?.[COOKIE_NAME]);
+  const claims = verifySession(req.cookies?.[COOKIE_NAMES.team]);
   if (!claims || claims.role !== "team") {
     return res.status(401).json({ error: "Not logged in." });
   }
@@ -76,7 +82,7 @@ export async function requireTeam(req, res, next) {
     const result = await pool.query("SELECT id, team_name, banned FROM teams WHERE id = $1", [claims.teamId]);
     const team = result.rows[0];
     if (!team || team.banned) {
-      clearSessionCookie(res);
+      clearSessionCookie(res, "team");
       return res.status(403).json({ error: "This team has been suspended. Contact an organizer." });
     }
     req.team = { id: team.id, teamName: team.team_name };
@@ -87,7 +93,7 @@ export async function requireTeam(req, res, next) {
 }
 
 export function requireAdmin(req, res, next) {
-  const claims = verifySession(req.cookies?.[COOKIE_NAME]);
+  const claims = verifySession(req.cookies?.[COOKIE_NAMES.admin]);
   if (!claims || claims.role !== "admin") {
     return res.status(401).json({ error: "Admin login required." });
   }

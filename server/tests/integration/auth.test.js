@@ -110,4 +110,28 @@ describe("session lifecycle", () => {
     expect(response.body.error).toMatch(/suspended/i);
     expect(response.headers["set-cookie"]).toBeDefined();
   });
+
+  it("keeps a team session and an admin session separate in the same browser", async () => {
+    const browser = request.agent(app);
+    await browser.post("/api/auth/register").send({ teamName: "Two Roles", password: "password123" }).expect(201);
+    await browser.post("/api/admin/login").send({ password: process.env.ADMIN_PASSWORD }).expect(200);
+
+    await browser.get("/api/auth/me").expect(200);
+    await browser.get("/api/admin/me").expect(200, { admin: true });
+
+    await browser.post("/api/auth/logout").expect(200);
+    await browser.get("/api/auth/me").expect(401);
+    await browser.get("/api/admin/me").expect(200, { admin: true });
+  });
+
+  it("keeps the admin session active after deleting the matching team", async () => {
+    const browser = request.agent(app);
+    await browser.post("/api/auth/register").send({ teamName: "Deleted Driver", password: "password123" }).expect(201);
+    await browser.post("/api/admin/login").send({ password: process.env.ADMIN_PASSWORD }).expect(200);
+    const { rows } = await pool.query("SELECT id FROM teams WHERE team_name = 'Deleted Driver'");
+
+    await browser.delete(`/api/admin/teams/${rows[0].id}`).expect(200);
+    await browser.get("/api/auth/me").expect(403);
+    await browser.get("/api/admin/me").expect(200, { admin: true });
+  });
 });

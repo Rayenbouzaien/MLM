@@ -90,7 +90,7 @@ router.post("/login", authLimiter, async (req, res) => {
 });
 
 router.post("/logout", (req, res) => {
-  clearSessionCookie(res);
+  clearSessionCookie(res, "team");
   res.json({ success: true });
 });
 

@@ -33,7 +33,7 @@ router.post("/login", adminLoginLimiter, (req, res) => {
 });
 
 router.post("/logout", (req, res) => {
-  clearSessionCookie(res);
+  clearSessionCookie(res, "admin");
   res.json({ success: true });
 });
 

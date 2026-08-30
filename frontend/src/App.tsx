@@ -116,7 +116,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!team) return;
+    if (!team || page === "admin") return;
     const source = new EventSource(`${API_BASE}/api/live`);
     source.onmessage = (message) => {
       try {
@@ -133,7 +133,7 @@ export default function App() {
       }
     };
     return () => source.close();
-  }, [team]);
+  }, [team, page]);
 
   async function handleLogout() {
     await api.post("/api/auth/logout").catch(() => {});
@@ -204,7 +204,7 @@ export default function App() {
         </button>
 
         {/* Desktop team session control */}
-        <div className="hidden md:block">
+        {page !== "admin" && <div className="hidden md:block">
           {team ? (
             <div className="flex items-center gap-3">
               <span className="text-xs text-gray-400" style={{ fontFamily: "'Titillium Web',sans-serif" }}>{team.teamName}</span>
@@ -220,7 +220,7 @@ export default function App() {
               </button>
             )
           )}
-        </div>
+        </div>}
       </nav>
 
       {/* Mobile menu */}
@@ -238,7 +238,7 @@ export default function App() {
               <span className="text-xs text-gray-500 ml-2">{item.sub}</span>
             </div>
           ))}
-          <div className="py-2 flex items-center justify-between">
+          {page !== "admin" && <div className="py-2 flex items-center justify-between">
             {team ? (
               <>
                 <span className="text-xs text-gray-400">{team.teamName}</span>
@@ -249,7 +249,7 @@ export default function App() {
                 Team Login
               </button>
             )}
-          </div>
+          </div>}
         </div>
       )}
 
