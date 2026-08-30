@@ -16,7 +16,7 @@ export function emit(event) {
 }
 
 export function getRecent() {
-  return recent;
+  return recent.slice();
 }
 
 export function subscribe(listener) {

@@ -8,8 +8,8 @@ interface Team {
 }
 
 interface LiveEvent {
-  type: "team_joined" | "submission";
-  teamName: string;
+  type: "team_joined" | "submission" | "data_changed" | "team_access_revoked";
+  teamName?: string;
   at: string;
 }
 
@@ -114,6 +114,7 @@ function TeamCard({ team }: { team: Team }) {
 /* ── Pit Wall Feed ───────────────────────────────────────── */
 function PitWallFeed() {
   const [events, setEvents] = useState<LiveEvent[]>([]);
+  const visibleEvents = events.filter((event) => event.type === "team_joined" || event.type === "submission");
 
   useEffect(() => {
     const source = new EventSource(`${API_BASE}/api/live`);
@@ -158,12 +159,12 @@ function PitWallFeed() {
         <div className="absolute bottom-1 right-1 w-4 h-4 border-b border-r" style={{ borderColor: "#00D2D2" }} />
 
         <div className="space-y-3 px-1">
-          {events.length === 0 && (
+          {visibleEvents.length === 0 && (
             <p className="text-gray-600 text-xs text-center py-4" style={{ fontFamily: "'Titillium Web',sans-serif" }}>
               Waiting for the first team to arrive...
             </p>
           )}
-          {events.map((event, i) => {
+          {visibleEvents.map((event, i) => {
             const isJoin = event.type === "team_joined";
             const teamColor = isJoin ? "#00D2D2" : "#22c55e";
             return (
@@ -190,7 +191,18 @@ export default function PaddockPage({ onOpenGarage }: { onOpenGarage: () => void
   const [teams, setTeams] = useState<Team[]>([]);
 
   useEffect(() => {
-    api.get<{ teams: Team[] }>("/api/teams").then((res) => setTeams(res.teams)).catch(() => {});
+    const loadTeams = () => api.get<{ teams: Team[] }>("/api/teams").then((res) => setTeams(res.teams)).catch(() => {});
+    void loadTeams();
+    const source = new EventSource(`${API_BASE}/api/live`);
+    source.onmessage = (message) => {
+      try {
+        const event: LiveEvent = JSON.parse(message.data);
+        if (event.type === "team_joined" || event.type === "submission" || event.type === "data_changed") void loadTeams();
+      } catch {
+        // Keep-alive comments are intentionally ignored.
+      }
+    };
+    return () => source.close();
   }, []);
 
   const filtered = useMemo(() =>
@@ -284,7 +296,6 @@ export default function PaddockPage({ onOpenGarage }: { onOpenGarage: () => void
                 background: "rgba(255,255,255,0.05)",
                 border: "1px solid rgba(255,255,255,0.15)",
                 fontFamily: "'Titillium Web',sans-serif",
-                focusRingColor: "#00D2D2",
               }}
             />
           </div>

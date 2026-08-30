@@ -15,6 +15,7 @@
 
 const API_URL = process.env.API_URL || "http://localhost:4000";
 const TEAM_COUNT = Number(process.env.TEAM_COUNT || 300);
+const MAX_CONCURRENCY = Math.max(1, Number(process.env.MAX_CONCURRENCY || TEAM_COUNT));
 
 function extractCookie(res) {
   const raw = res.headers.get("set-cookie");
@@ -58,13 +59,26 @@ function percentile(sorted, p) {
 }
 
 async function main() {
-  console.log(`Firing ${TEAM_COUNT} concurrent register+submit pairs at ${API_URL} ...`);
+  console.log(`Firing ${TEAM_COUNT} register+submit pairs at ${API_URL} (max ${MAX_CONCURRENCY} in flight) ...`);
 
   const healthBefore = await fetch(`${API_URL}/api/health`).then((r) => r.json());
   console.log("Pool before:", healthBefore.pool);
 
   const start = Date.now();
-  const results = await Promise.allSettled(Array.from({ length: TEAM_COUNT }, (_, i) => simulateTeam(i)));
+  const results = [];
+  let nextTeam = 0;
+  async function worker() {
+    while (nextTeam < TEAM_COUNT) {
+      const team = nextTeam;
+      nextTeam += 1;
+      try {
+        results.push({ status: "fulfilled", value: await simulateTeam(team) });
+      } catch (reason) {
+        results.push({ status: "rejected", reason });
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENCY, TEAM_COUNT) }, () => worker()));
   const totalMs = Date.now() - start;
 
   const regStatuses = {};

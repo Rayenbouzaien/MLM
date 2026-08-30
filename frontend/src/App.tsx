@@ -6,7 +6,7 @@ import ChallengesPage from "./pages/ChallengesPage";
 import LoginPage from "./pages/LoginPage";
 import AdminPage from "./pages/AdminPage";
 import RulesPrizesPage from "./pages/RulesPrizesPage";
-import { api } from "./lib/api";
+import { API_BASE, api } from "./lib/api";
 
 const HERO_IMG =
   "https://images.unsplash.com/photo-1784565646478-584a622b0933?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwzfHxGb3JtdWxhJTIwMSUyMHJhY2UlMjBjYXJzJTIwc3BlZWQlMjB0cmFjayUyMG5pZ2h0fGVufDF8fHx8MTc4Nzc1MjAzM3ww&ixlib=rb-4.1.0&q=80&w=1080";
@@ -91,9 +91,21 @@ const NAV_ITEMS: { label: string; sub: string; page: Page | null }[] = [
 export default function App() {
   const { days, hrs, min, sec } = useCountdown(TARGET);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [page, setPage] = useState<Page>("home");
+  const [page, setPage] = useState<Page>(() => window.location.pathname === "/admin" ? "admin" : "home");
   const [team, setTeam] = useState<{ id: string; teamName: string } | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [accessNotice, setAccessNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const syncPageFromUrl = () => setPage(window.location.pathname === "/admin" ? "admin" : "home");
+    window.addEventListener("popstate", syncPageFromUrl);
+    return () => window.removeEventListener("popstate", syncPageFromUrl);
+  }, []);
+
+  useEffect(() => {
+    const pathname = page === "admin" ? "/admin" : "/";
+    if (window.location.pathname !== pathname) window.history.pushState({}, "", pathname);
+  }, [page]);
 
   useEffect(() => {
     api
@@ -102,6 +114,26 @@ export default function App() {
       .catch(() => setTeam(null))
       .finally(() => setAuthChecked(true));
   }, []);
+
+  useEffect(() => {
+    if (!team) return;
+    const source = new EventSource(`${API_BASE}/api/live`);
+    source.onmessage = (message) => {
+      try {
+        const event = JSON.parse(message.data) as { type?: string; teamId?: string };
+        if (event.type === "team_access_revoked" && event.teamId === team.id) {
+          source.close();
+          void api.post("/api/auth/logout").catch(() => {});
+          setTeam(null);
+          setPage("home");
+          setAccessNotice("Your team account is no longer active. You have been signed out. Contact an organizer if you need help.");
+        }
+      } catch {
+        // Keep-alive comments are intentionally ignored.
+      }
+    };
+    return () => source.close();
+  }, [team]);
 
   async function handleLogout() {
     await api.post("/api/auth/logout").catch(() => {});
@@ -222,6 +254,16 @@ export default function App() {
       )}
 
       {/* PAGE CONTENT */}
+      {accessNotice && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-5" role="alertdialog" aria-modal="true" aria-labelledby="account-status-title">
+          <div className="w-full max-w-md border border-[#E10600] bg-[#111118] p-6 shadow-2xl">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#E10600]">Account status</p>
+            <h2 id="account-status-title" className="mt-3 font-headline text-2xl font-black uppercase text-white">Session ended</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-300">{accessNotice}</p>
+            <button onClick={() => setAccessNotice(null)} className="mt-6 w-full bg-[#E10600] px-4 py-3 text-xs font-bold uppercase tracking-[0.15em] text-white">Close</button>
+          </div>
+        </div>
+      )}
       {page === "home" && (
         <div className="flex-1 flex flex-col lg:flex-row relative overflow-hidden">
           {/* Left: Hero panel */}
@@ -365,7 +407,7 @@ export default function App() {
         <PaddockPage onOpenGarage={() => setPage(team ? "garage" : "login")} />
       )}
       {page === "garage" && (team ? <GaragePage onBack={() => setPage("paddock")} team={team} /> : <LoginPage onAuthed={(t) => { setTeam(t); setPage("garage"); }} />)}
-      {page === "challenges" && <ChallengesPage />}
+      {page === "challenges" && <ChallengesPage team={team} onLogin={() => setPage("login")} />}
       {page === "rules" && <RulesPrizesPage />}
       {page === "login" && <LoginPage onAuthed={(t) => { setTeam(t); setPage("garage"); }} />}
       {page === "admin" && <AdminPage />}
@@ -382,11 +424,7 @@ export default function App() {
         </div>
       )}
 
-      <footer className="py-3 px-8 text-center" style={{ background: "#0A0A0A", borderTop: "1px solid #1A1A1A" }}>
-        <button onClick={() => setPage("admin")} className="text-xs text-gray-700 hover:text-gray-500 transition-colors" style={{ background: "none", border: "none", cursor: "pointer" }}>
-          Race Control
-        </button>
-      </footer>
+      <footer className="py-3 px-8 text-center text-xs text-gray-700" style={{ background: "#0A0A0A", borderTop: "1px solid #1A1A1A" }}>GRIDLOCK / Formula 1 Hackathon</footer>
     </div>
   );
 }

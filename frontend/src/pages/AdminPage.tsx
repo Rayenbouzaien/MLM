@@ -175,6 +175,7 @@ function ChallengesTab() {
 
 function TeamsTab() {
   const [teams, setTeams] = useState<Team[]>([]);
+  const [showCreate, setShowCreate] = useState(false);
 
   async function load() {
     const res = await api.get<{ teams: Team[] }>("/api/admin/teams");
@@ -194,8 +195,9 @@ function TeamsTab() {
   }
 
   return (
-    <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.15)" }}>
-      <table className="w-full text-sm" style={{ fontFamily: "'Titillium Web',sans-serif" }}>
+    <div className="flex flex-col gap-4">
+      <div className="rounded-lg overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.15)" }}>
+        <table className="w-full text-sm" style={{ fontFamily: "'Titillium Web',sans-serif" }}>
         <thead>
           <tr style={{ background: "rgba(255,255,255,0.04)" }}>
             <th className="text-left px-4 py-2 text-gray-400 text-xs uppercase">Team</th>
@@ -232,20 +234,71 @@ function TeamsTab() {
             <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-600">No teams registered yet.</td></tr>
           )}
         </tbody>
-      </table>
+        </table>
+      </div>
+      {showCreate ? (
+        <TeamForm onSaved={() => { setShowCreate(false); load(); }} onCancel={() => setShowCreate(false)} />
+      ) : (
+        <button onClick={() => setShowCreate(true)} className="py-3 rounded font-bold uppercase text-xs" style={{ background: "transparent", border: "1px dashed #666", color: "#bbb", cursor: "pointer" }}>+ Add team</button>
+      )}
     </div>
+  );
+}
+
+function TeamForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () => void }) {
+  const [teamName, setTeamName] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setSaving(true);
+    try {
+      await api.post("/api/admin/teams", { teamName, password });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Unable to add the team.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3 rounded-lg p-4" style={{ border: "1px solid rgba(0,210,210,0.35)", background: "rgba(0,210,210,0.04)" }}>
+      <h3 className="font-bold uppercase text-sm text-white" style={{ fontFamily: "'Rajdhani',sans-serif" }}>Add team</h3>
+      <input required value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder="Team name" className="px-3 py-2 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
+      <input required minLength={8} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Temporary team password" className="px-3 py-2 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
+      {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
+      <div className="flex gap-2">
+        <button type="submit" disabled={saving} className="flex-1 py-2 rounded font-bold uppercase text-xs" style={{ background: "#00D2D2", color: "#000", border: "none", cursor: "pointer" }}>{saving ? "..." : "Create team"}</button>
+        <button type="button" onClick={onCancel} className="px-4 py-2 rounded font-bold uppercase text-xs" style={{ background: "transparent", color: "#aaa", border: "1px solid #555", cursor: "pointer" }}>Cancel</button>
+      </div>
+    </form>
   );
 }
 
 export default function AdminPage() {
   const [authed, setAuthed] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [tab, setTab] = useState<"challenges" | "teams">("challenges");
 
+  useEffect(() => {
+    api.get("/api/admin/me").then(() => setAuthed(true)).catch(() => setAuthed(false)).finally(() => setChecking(false));
+  }, []);
+
+  async function logout() {
+    await api.post("/api/admin/logout").catch(() => {});
+    setAuthed(false);
+  }
+
+  if (checking) return <div className="flex-1 grid place-items-center bg-[#080810] text-sm text-gray-400">Checking Race Control access…</div>;
   if (!authed) return <AdminLogin onLoggedIn={() => setAuthed(true)} />;
 
   return (
     <div className="flex-1 p-6" style={{ background: "linear-gradient(160deg,#080810 0%,#10101a 100%)", maxWidth: 900, margin: "0 auto", width: "100%" }}>
-      <h1 className="font-headline font-black text-white uppercase mb-6" style={{ fontSize: "1.6rem", letterSpacing: "0.05em" }}>RACE CONTROL</h1>
+      <div className="mb-6 flex items-center justify-between gap-4"><h1 className="font-headline font-black text-white uppercase" style={{ fontSize: "1.6rem", letterSpacing: "0.05em" }}>RACE CONTROL</h1><button onClick={() => void logout()} className="text-xs uppercase tracking-widest" style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer" }}>Log out</button></div>
       <div className="flex gap-2 mb-6">
         {(["challenges", "teams"] as const).map((t) => (
           <button
