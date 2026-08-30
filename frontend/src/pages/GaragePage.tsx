@@ -186,15 +186,8 @@ function ProgressTracker() {
 }
 
 /* ── Member row ──────────────────────────────────────────── */
-const MEMBERS = [
-  { name: "User_Driver", role: "Driver", badge: "Active", badgeColor: "#22c55e" },
-  { name: "User_Engineer", role: "Engineer", badge: "Ready for FP1", badgeColor: "#00D2D2" },
-  { name: "User_Strategist", role: "Strategist", badge: "Active", badgeColor: "#22c55e" },
-  { name: "User_Drivn", role: "Roler", badge: "Active", badgeColor: "#22c55e" },
-];
-
 function Avatar({ name }: { name: string }) {
-  const initials = name.replace("User_", "").slice(0, 2).toUpperCase();
+  const initials = name.trim().split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
   return (
     <div
       className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
@@ -231,6 +224,12 @@ function DigitBox({ value, label }: { value: string; label: string }) {
 }
 
 /* ── Page ────────────────────────────────────────────────── */
+interface RosterMember {
+  id: string;
+  displayName: string;
+  role: "leader" | "member";
+}
+
 export default function GaragePage({ onBack, team }: { onBack: () => void; team: { id: string; teamName: string } }) {
   const sessionTime = useSessionTime();
   const { days, min, sec } = useDeadline();
@@ -239,6 +238,7 @@ export default function GaragePage({ onBack, team }: { onBack: () => void; team:
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [roster, setRoster] = useState<RosterMember[]>([]);
 
   useEffect(() => {
     api
@@ -249,7 +249,8 @@ export default function GaragePage({ onBack, team }: { onBack: () => void; team:
         setSubmitted(true);
       })
       .catch(() => {}); // no submission yet — that's fine, form stays blank
-  }, []);
+    api.get<{ members: RosterMember[] }>("/api/auth/team/members").then((response) => setRoster(response.members)).catch(() => {});
+  }, [team.id]);
 
   async function handleSubmit() {
     if (submitting) return;
@@ -318,16 +319,16 @@ export default function GaragePage({ onBack, team }: { onBack: () => void; team:
               </div>
               {/* Members */}
               <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                {MEMBERS.map((m, i) => (
-                  <div key={i} className="flex items-center gap-3 px-4 py-2.5">
-                    <Avatar name={m.name} />
+                {(roster.length ? roster : [{ id: "team-account", displayName: team.teamName, role: "member" as const }]).map((m) => (
+                  <div key={m.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <Avatar name={m.displayName} />
                     <div className="flex-1 min-w-0">
                       <div className="text-white text-sm font-semibold truncate"
                         style={{ fontFamily: "'Rajdhani',sans-serif" }}>
-                        {m.name}
+                        {m.displayName}
                       </div>
                       <div className="text-gray-500 text-xs" style={{ fontFamily: "'Titillium Web',sans-serif" }}>
-                        {m.role}
+                        {m.role === "leader" ? "Team Leader" : "Team Member"}
                       </div>
                     </div>
                     <span
@@ -335,13 +336,13 @@ export default function GaragePage({ onBack, team }: { onBack: () => void; team:
                       style={{
                         fontFamily: "'Titillium Web',sans-serif",
                         fontSize: "0.65rem",
-                        color: m.badgeColor,
-                        border: `1px solid ${m.badgeColor}`,
-                        background: `${m.badgeColor}15`,
+                        color: m.role === "leader" ? "#00D2D2" : "#22c55e",
+                        border: `1px solid ${m.role === "leader" ? "#00D2D2" : "#22c55e"}`,
+                        background: m.role === "leader" ? "#00D2D215" : "#22c55e15",
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {m.badge}
+                      Active
                     </span>
                   </div>
                 ))}

@@ -49,6 +49,51 @@ describe("POST /api/auth/register", () => {
   });
 });
 
+describe("leader and member registration", () => {
+  it("creates a leader-owned team with its profile and a member session", async () => {
+    const browser = request.agent(app);
+    const response = await browser
+      .post("/api/auth/leader/register")
+      .send({
+        teamName: "Night Shift Racing",
+        description: "A data-driven endurance crew.",
+        logoUrl: "https://images.example.test/night-shift.png",
+        displayName: "Mina Driver",
+        email: "mina@example.com",
+        password: "password123",
+      })
+      .expect(201);
+
+    expect(response.body.team).toMatchObject({ teamName: "Night Shift Racing", description: "A data-driven endurance crew." });
+    expect(response.body.member).toMatchObject({ displayName: "Mina Driver", email: "mina@example.com", role: "leader" });
+    await browser.get("/api/auth/me").expect(200);
+    const memberProfile = await browser.get("/api/auth/member/me").expect(200);
+    expect(memberProfile.body.member).toMatchObject({ role: "leader" });
+  });
+
+  it("lets an existing member accept an invitation and join the leader's team", async () => {
+    const leader = request.agent(app);
+    await leader.post("/api/auth/leader/register").send({
+      teamName: "Invite Only Racing", displayName: "Lead Driver", email: "lead@example.com", password: "password123",
+    }).expect(201);
+
+    const member = request.agent(app);
+    await member.post("/api/auth/member/register").send({
+      displayName: "Guest Driver", email: "guest@example.com", password: "password123",
+    }).expect(201);
+
+    await leader.post("/api/auth/team/invitations").send({ email: "guest@example.com" }).expect(201);
+    const invitations = await member.get("/api/auth/invitations").expect(200);
+    expect(invitations.body.invitations).toHaveLength(1);
+
+    await member.post(`/api/auth/invitations/${invitations.body.invitations[0].id}/accept`).expect(200);
+    const teamSession = await member.get("/api/auth/me").expect(200);
+    expect(teamSession.body.team).toMatchObject({ teamName: "Invite Only Racing" });
+    const roster = await leader.get("/api/auth/team/members").expect(200);
+    expect(roster.body.members).toEqual(expect.arrayContaining([expect.objectContaining({ email: "guest@example.com", role: "member" })]));
+  });
+});
+
 describe("POST /api/auth/login", () => {
   beforeEach(async () => {
     await request(app).post("/api/auth/register").send({ teamName: "Grid Lords", password: "correcthorse" });

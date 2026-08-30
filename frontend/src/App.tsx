@@ -3,7 +3,8 @@ import CircuitPage from "./pages/CircuitPage";
 import PaddockPage from "./pages/PaddockPage";
 import GaragePage from "./pages/GaragePage";
 import ChallengesPage from "./pages/ChallengesPage";
-import LoginPage from "./pages/LoginPage";
+import LoginPage, { type Member, type Team } from "./pages/LoginPage";
+import MemberPage from "./pages/MemberPage";
 import AdminPage from "./pages/AdminPage";
 import RulesPrizesPage from "./pages/RulesPrizesPage";
 import { API_BASE, api } from "./lib/api";
@@ -78,7 +79,7 @@ const TRACKS = [
   { icon: <LeafCarIcon />, title: "SUSTAINABLE RACE LOGISTICS" },
 ];
 
-type Page = "home" | "circuit" | "paddock" | "garage" | "challenges" | "login" | "admin" | "rules";
+type Page = "home" | "circuit" | "paddock" | "garage" | "challenges" | "login" | "member" | "admin" | "rules";
 
 const NAV_ITEMS: { label: string; sub: string; page: Page | null }[] = [
   { label: "Lights Out", sub: "Home", page: "home" },
@@ -92,7 +93,8 @@ export default function App() {
   const { days, hrs, min, sec } = useCountdown(TARGET);
   const [menuOpen, setMenuOpen] = useState(false);
   const [page, setPage] = useState<Page>(() => window.location.pathname === "/admin" ? "admin" : "home");
-  const [team, setTeam] = useState<{ id: string; teamName: string } | null>(null);
+  const [team, setTeam] = useState<Team | null>(null);
+  const [member, setMember] = useState<Member | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [accessNotice, setAccessNotice] = useState<string | null>(null);
 
@@ -108,11 +110,16 @@ export default function App() {
   }, [page]);
 
   useEffect(() => {
-    api
-      .get<{ team: { id: string; teamName: string } }>("/api/auth/me")
-      .then((res) => setTeam(res.team))
-      .catch(() => setTeam(null))
-      .finally(() => setAuthChecked(true));
+    let active = true;
+    Promise.all([
+      api.get<{ team: Team }>("/api/auth/me").catch(() => null),
+      api.get<{ member: Member }>("/api/auth/member/me").catch(() => null),
+    ]).then(([teamResponse, memberResponse]) => {
+      if (!active) return;
+      setTeam(teamResponse?.team ?? null);
+      setMember(memberResponse?.member ?? null);
+    }).finally(() => { if (active) setAuthChecked(true); });
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -138,7 +145,20 @@ export default function App() {
   async function handleLogout() {
     await api.post("/api/auth/logout").catch(() => {});
     setTeam(null);
+    setPage(member ? "member" : "home");
+  }
+
+  async function handleMemberLogout() {
+    await api.post("/api/auth/member/logout").catch(() => {});
+    setTeam(null);
+    setMember(null);
     setPage("home");
+  }
+
+  function handleAuth(result: { team: Team | null; member?: Member }) {
+    setTeam(result.team);
+    if (result.member) setMember(result.member);
+    setPage(result.team ? "garage" : "member");
   }
 
   return (
@@ -208,9 +228,15 @@ export default function App() {
           {team ? (
             <div className="flex items-center gap-3">
               <span className="text-xs text-gray-400" style={{ fontFamily: "'Titillium Web',sans-serif" }}>{team.teamName}</span>
+              {member && <button onClick={() => setPage("member")} className="text-xs" style={{ color: "#00D2D2", background: "none", border: "none", cursor: "pointer" }}>Member hub</button>}
               <button onClick={handleLogout} className="text-xs" style={{ color: "#00D2D2", background: "none", border: "none", cursor: "pointer" }}>
                 Log out
               </button>
+            </div>
+          ) : member ? (
+            <div className="flex items-center gap-3">
+              <button onClick={() => setPage("member")} className="text-xs text-gray-300" style={{ background: "none", border: "none", cursor: "pointer" }}>{member.displayName}</button>
+              <button onClick={handleMemberLogout} className="text-xs" style={{ color: "#00D2D2", background: "none", border: "none", cursor: "pointer" }}>Log out</button>
             </div>
           ) : (
             authChecked && (
@@ -242,7 +268,13 @@ export default function App() {
             {team ? (
               <>
                 <span className="text-xs text-gray-400">{team.teamName}</span>
+                {member && <button onClick={() => { setPage("member"); setMenuOpen(false); }} className="text-xs" style={{ color: "#00D2D2", background: "none", border: "none" }}>Member hub</button>}
                 <button onClick={() => { handleLogout(); setMenuOpen(false); }} className="text-xs" style={{ color: "#00D2D2", background: "none", border: "none" }}>Log out</button>
+              </>
+            ) : member ? (
+              <>
+                <button onClick={() => { setPage("member"); setMenuOpen(false); }} className="text-xs text-gray-300" style={{ background: "none", border: "none" }}>{member.displayName}</button>
+                <button onClick={() => { handleMemberLogout(); setMenuOpen(false); }} className="text-xs" style={{ color: "#00D2D2", background: "none", border: "none" }}>Log out</button>
               </>
             ) : (
               <button onClick={() => { setPage("login"); setMenuOpen(false); }} className="text-xs font-semibold" style={{ color: "#00D2D2", background: "none", border: "none" }}>
@@ -404,12 +436,13 @@ export default function App() {
 
       {page === "circuit" && <CircuitPage />}
       {page === "paddock" && (
-        <PaddockPage onOpenGarage={() => setPage(team ? "garage" : "login")} />
+        <PaddockPage onOpenGarage={() => setPage(team ? "garage" : member ? "member" : "login")} />
       )}
-      {page === "garage" && (team ? <GaragePage onBack={() => setPage("paddock")} team={team} /> : <LoginPage onAuthed={(t) => { setTeam(t); setPage("garage"); }} />)}
+      {page === "garage" && (team ? <GaragePage onBack={() => setPage("paddock")} team={team} /> : <LoginPage onAuthed={handleAuth} />)}
       {page === "challenges" && <ChallengesPage team={team} onLogin={() => setPage("login")} />}
       {page === "rules" && <RulesPrizesPage />}
-      {page === "login" && <LoginPage onAuthed={(t) => { setTeam(t); setPage("garage"); }} />}
+      {page === "login" && <LoginPage onAuthed={handleAuth} />}
+      {page === "member" && <MemberPage onTeamJoined={(joinedTeam) => { setTeam(joinedTeam); setPage("garage"); }} />}
       {page === "admin" && <AdminPage />}
 
       {/* Bottom teaser — home only */}

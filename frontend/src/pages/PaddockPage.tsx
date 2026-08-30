@@ -4,6 +4,8 @@ import { API_BASE, api } from "../lib/api";
 /* ── Data ─────────────────────────────────────────────────── */
 interface Team {
   team_name: string;
+  description: string;
+  logo_url: string | null;
   submitted: boolean;
 }
 
@@ -90,18 +92,24 @@ function TeamCard({ team }: { team: Team }) {
         <MiniChart color={carColor} />
       </div>
 
-      <h3
-        className="font-bold uppercase leading-tight pr-16"
+      <div className="flex items-start gap-3 pr-12">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded border text-sm font-black" style={{ borderColor: `${border}88`, color: border }}>
+          {team.logo_url ? <img src={team.logo_url} alt="" className="h-full w-full object-cover" /> : team.team_name.slice(0, 1)}
+        </div>
+        <h3
+          className="font-bold uppercase leading-tight"
         style={{ fontFamily: "'Rajdhani',sans-serif", fontSize: "clamp(1rem,2vw,1.15rem)", color: border, textShadow: `0 0 12px ${border}88`, letterSpacing: "0.04em" }}
       >
         {team.team_name}
       </h3>
+      </div>
 
       <div className="absolute bottom-3 right-2 w-28 h-14 opacity-40">
         <F1CarSilhouette color={carColor} />
       </div>
 
       <div className="pr-28">
+        {team.description && <p className="mb-2 line-clamp-2 text-xs text-gray-400" style={{ fontFamily: "'Titillium Web',sans-serif" }}>{team.description}</p>}
         <span className="text-xs flex items-center gap-1.5" style={{ fontFamily: "'Titillium Web',sans-serif" }}>
           <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: team.submitted ? "#22c55e" : "#666", boxShadow: team.submitted ? "0 0 6px #22c55e" : "none" }} />
           <span className="text-gray-300">{team.submitted ? "Submitted" : "In the garage"}</span>

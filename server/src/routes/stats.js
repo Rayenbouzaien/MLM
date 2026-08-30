@@ -18,7 +18,7 @@ router.get("/stats", async (req, res) => {
 // asked for that data), so this stays honest rather than inventing flavor text.
 router.get("/teams", async (req, res) => {
   const result = await pool.query(`
-    SELECT t.team_name, (s.id IS NOT NULL) AS submitted
+    SELECT t.team_name, t.description, t.logo_url, (s.id IS NOT NULL) AS submitted
     FROM teams t
     LEFT JOIN submissions s ON s.team_id = t.id
     WHERE NOT t.banned

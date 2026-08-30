@@ -74,6 +74,25 @@ body {
   clip-path: polygon(0 0, 92% 0, 100% 100%, 0 100%);
 }
 
+.form-input {
+  width: 100%;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 0.25rem;
+  background: rgba(255,255,255,0.04);
+  color: #fff;
+  padding: 0.625rem 0.75rem;
+  font-family: 'Titillium Web', sans-serif;
+  font-size: 0.875rem;
+  letter-spacing: normal;
+  text-transform: none;
+  outline: none;
+}
+
+.form-input:focus {
+  border-color: #00D2D2;
+  box-shadow: 0 0 0 2px rgba(0,210,210,0.16);
+}
+
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
