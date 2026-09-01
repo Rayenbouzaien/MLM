@@ -47,7 +47,7 @@ router.get("/me", requireAdmin, (req, res) => {
 router.get("/challenges", requireAdmin, async (req, res, next) => {
   try {
     const result = await pool.query(
-      `SELECT c.id, c.title, c.description, c.deliverables, c.color, c.sort_order,
+      `SELECT c.id, c.title, c.description, c.deliverables, c.color, c.image_key, c.sort_order,
               COALESCE(
                 json_agg(json_build_object('id', t.id, 'teamName', t.team_name) ORDER BY tc.selected_at)
                 FILTER (WHERE t.id IS NOT NULL),

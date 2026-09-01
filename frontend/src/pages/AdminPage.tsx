@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import { api, ApiError } from "../lib/api";
+import { CHALLENGE_ART_OPTIONS, getChallengeArtKey, getChallengeArtSource, type ChallengeArtKey } from "../lib/challenge-art";
 
 interface SelectedTeam { id: string; teamName: string; }
 interface Challenge {
@@ -8,6 +9,7 @@ interface Challenge {
   description: string;
   deliverables: string;
   color: string;
+  image_key?: string | null;
   sort_order: number;
   selected_teams: SelectedTeam[];
 }
@@ -21,17 +23,14 @@ interface Team {
   submitted_at: string | null;
 }
 
-const CHALLENGE_MEDIA: Record<number, string> = {
-  1: "/assets/challenge-strategy.png",
-  2: "/assets/challenge-fan-command.png",
-  3: "/assets/challenge-logistics.png",
-};
-
 function ChallengeImage({ challenge }: { challenge: Challenge }) {
+  const primarySource = getChallengeArtSource(challenge.image_key, challenge.sort_order);
+  const fallbackSource = getChallengeArtSource("innovation");
+  const [source, setSource] = useState(primarySource);
   const [failed, setFailed] = useState(false);
-  const source = CHALLENGE_MEDIA[challenge.sort_order];
-  if (!source || failed) return <span className="admin-challenge-image__fallback">{challenge.title.charAt(0)}</span>;
-  return <img src={source} alt="" loading="lazy" onError={() => setFailed(true)} />;
+  useEffect(() => { setSource(primarySource); setFailed(false); }, [primarySource]);
+  if (failed) return <span className="admin-challenge-image__fallback">Image unavailable</span>;
+  return <img src={source} alt="" loading="lazy" onError={() => source === fallbackSource ? setFailed(true) : setSource(fallbackSource)} />;
 }
 
 function AdminLogin({ onLoggedIn }: { onLoggedIn: () => void }) {
@@ -62,13 +61,14 @@ function ChallengeForm({ editing, onSaved, onCancel }: { editing: Challenge | nu
   const [description, setDescription] = useState(editing?.description ?? "");
   const [deliverables, setDeliverables] = useState(editing?.deliverables ?? "");
   const [color, setColor] = useState(editing?.color ?? "#E10600");
+  const [imageKey, setImageKey] = useState<ChallengeArtKey>(() => getChallengeArtKey(editing?.image_key, editing?.sort_order));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault(); setSaving(true); setError(null);
     try {
-      const body = { title, description, deliverables, color };
+      const body = { title, description, deliverables, color, imageKey };
       if (editing) await api.patch(`/api/challenges/${editing.id}`, body);
       else await api.post("/api/challenges", body);
       onSaved();
@@ -82,6 +82,7 @@ function ChallengeForm({ editing, onSaved, onCancel }: { editing: Challenge | nu
     <label>Race brief<textarea required rows={4} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
     <label>Deliverables<input value={deliverables} onChange={(event) => setDeliverables(event.target.value)} /></label>
     <label className="admin-form__color">Challenge accent<input type="color" value={color} onChange={(event) => setColor(event.target.value)} /></label>
+    <fieldset className="admin-art-picker"><legend>Challenge image</legend><p>Select the visual shown on the public Challenge Board.</p><div>{CHALLENGE_ART_OPTIONS.map((option) => <label className={imageKey === option.key ? "is-selected" : ""} key={option.key}><input type="radio" name="challenge-art" value={option.key} checked={imageKey === option.key} onChange={() => setImageKey(option.key)} /><img src={option.source} alt="" /><span>{option.label}</span></label>)}</div></fieldset>
     {error && <p className="admin-alert" role="alert">{error}</p>}
     <div className="admin-form__actions"><button type="submit" disabled={saving}>{saving ? "Saving…" : editing ? "Save brief" : "Publish challenge"}</button><button type="button" onClick={onCancel}>Cancel</button></div>
   </form>;

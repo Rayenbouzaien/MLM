@@ -11,12 +11,13 @@ const challengeSchema = z.object({
   description: z.string().trim().min(1).max(4000),
   deliverables: z.string().trim().max(2000).optional().default(""),
   color: z.string().trim().regex(/^#[0-9a-f]{6}$/i, "Must be a hex color like #E10600").optional().default("#E10600"),
+  imageKey: z.enum(["strategy", "fan-command", "logistics", "innovation"]).optional().default("strategy"),
   sortOrder: z.number().int().optional().default(0),
 });
 
 router.get("/", async (req, res) => {
   const result = await pool.query(
-    `SELECT id, title, description, deliverables, color, sort_order
+    `SELECT id, title, description, deliverables, color, image_key, sort_order
      FROM challenges ORDER BY sort_order ASC, created_at ASC`,
   );
   res.json({ challenges: result.rows });
@@ -29,7 +30,7 @@ const selectionsSchema = z.object({
 router.get("/me", requireTeam, async (req, res, next) => {
   try {
     const result = await pool.query(
-      `SELECT c.id, c.title, c.description, c.deliverables, c.color, c.sort_order
+      `SELECT c.id, c.title, c.description, c.deliverables, c.color, c.image_key, c.sort_order
        FROM team_challenges tc
        JOIN challenges c ON c.id = tc.challenge_id
        WHERE tc.team_id = $1
@@ -73,7 +74,7 @@ router.put("/me", requireTeam, async (req, res, next) => {
     }
     const result = await client.query(
       `WITH selected(id, ordinality) AS (SELECT * FROM unnest($1::bigint[]) WITH ORDINALITY)
-       SELECT c.id, c.title, c.description, c.deliverables, c.color, c.sort_order
+       SELECT c.id, c.title, c.description, c.deliverables, c.color, c.image_key, c.sort_order
        FROM selected
        JOIN challenges c ON c.id = selected.id
        ORDER BY selected.ordinality`,
@@ -95,11 +96,11 @@ router.post("/", requireAdmin, async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid challenge", details: parsed.error.flatten().fieldErrors });
   }
-  const { title, description, deliverables, color, sortOrder } = parsed.data;
+  const { title, description, deliverables, color, imageKey, sortOrder } = parsed.data;
   const result = await pool.query(
-    `INSERT INTO challenges (title, description, deliverables, color, sort_order)
-     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-    [title, description, deliverables, color, sortOrder],
+    `INSERT INTO challenges (title, description, deliverables, color, image_key, sort_order)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    [title, description, deliverables, color, imageKey, sortOrder],
   );
   emit({ type: "data_changed", resource: "challenges", at: new Date().toISOString() });
   res.status(201).json({ challenge: result.rows[0] });
@@ -114,7 +115,7 @@ router.patch("/:id", requireAdmin, async (req, res) => {
   const keys = Object.keys(fields);
   if (keys.length === 0) return res.status(400).json({ error: "No fields to update" });
 
-  const colMap = { title: "title", description: "description", deliverables: "deliverables", color: "color", sortOrder: "sort_order" };
+  const colMap = { title: "title", description: "description", deliverables: "deliverables", color: "color", imageKey: "image_key", sortOrder: "sort_order" };
   const setClauses = keys.map((k, i) => `${colMap[k]} = $${i + 2}`);
   const values = keys.map((k) => fields[k]);
 

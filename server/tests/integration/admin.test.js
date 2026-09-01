@@ -58,15 +58,17 @@ describe("Challenges CRUD authorization", () => {
 
     const created = await agent
       .post("/api/challenges")
-      .send({ title: "Predictive Analytics", description: "Build ML models.", color: "#00D2D2" })
+      .send({ title: "Predictive Analytics", description: "Build ML models.", color: "#00D2D2", imageKey: "fan-command" })
       .expect(201);
     const id = created.body.challenge.id;
+    expect(created.body.challenge.image_key).toBe("fan-command");
 
     const updated = await agent
       .patch(`/api/challenges/${id}`)
-      .send({ title: "Predictive Analytics 2.0" })
+      .send({ title: "Predictive Analytics 2.0", imageKey: "logistics" })
       .expect(200);
     expect(updated.body.challenge.title).toBe("Predictive Analytics 2.0");
+    expect(updated.body.challenge.image_key).toBe("logistics");
 
     const list = await request(app).get("/api/challenges").expect(200);
     expect(list.body.challenges).toHaveLength(1);
@@ -81,6 +83,14 @@ describe("Challenges CRUD authorization", () => {
     await agent
       .post("/api/challenges")
       .send({ title: "X", description: "Y", color: "not-a-color" })
+      .expect(400);
+  });
+
+  it("rejects a challenge image outside the curated art library", async () => {
+    const agent = await adminAgent();
+    await agent
+      .post("/api/challenges")
+      .send({ title: "X", description: "Y", imageKey: "https://untrusted.example/image.png" })
       .expect(400);
   });
 

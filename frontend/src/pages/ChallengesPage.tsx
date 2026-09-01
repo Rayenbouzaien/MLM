@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { API_BASE, api, ApiError } from "../lib/api";
+import { CHALLENGE_ART_OPTIONS, getChallengeArtSource } from "../lib/challenge-art";
 
 interface TeamSession {
   id: string;
@@ -13,6 +14,7 @@ interface Challenge {
   description: string;
   deliverables: string;
   color: string;
+  image_key?: string | null;
   sort_order: number;
 }
 
@@ -22,80 +24,21 @@ interface LiveEvent {
 
 type SyncState = "guest" | "loading" | "saved" | "saving" | "error";
 
-const CHALLENGE_MEDIA: Record<number, string> = {
-  1: "/assets/challenge-strategy.png",
-  2: "/assets/challenge-fan-command.png",
-  3: "/assets/challenge-logistics.png",
-};
-
 function challengeNumber(challenge: Challenge, index: number) {
   return String(challenge.sort_order || index + 1).padStart(2, "0");
 }
 
-function ChallengeVisual({ number, title }: { number: string; title: string }) {
-  const monogram = title.trim().charAt(0).toUpperCase() || number;
-
-  return (
-    <div className="challenge-visual" aria-hidden="true">
-      <span className="challenge-visual__number">{number}</span>
-      <span className="challenge-visual__icon">
-        <ChallengeIcon order={Number(number)} />
-      </span>
-      <span className="challenge-visual__mark">{monogram}</span>
-      <i className="challenge-visual__line challenge-visual__line--one" />
-      <i className="challenge-visual__line challenge-visual__line--two" />
-    </div>
-  );
-}
-
-function ChallengeIcon({ order }: { order: number }) {
-  const common = {
-    fill: "none",
-    stroke: "currentColor",
-    strokeLinecap: "square" as const,
-    strokeLinejoin: "miter" as const,
-    strokeWidth: 1.6,
-  };
-
-  if (order === 2) {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <circle cx="12" cy="12" r="2" {...common} />
-        <path d="M7.5 7.5a6.35 6.35 0 0 0 0 9M16.5 7.5a6.35 6.35 0 0 1 0 9M4.5 4.5a10.6 10.6 0 0 0 0 15M19.5 4.5a10.6 10.6 0 0 1 0 15" {...common} />
-      </svg>
-    );
-  }
-
-  if (order === 3) {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M4.5 8.5h15v10h-15zM4.5 12.5h15M12 8.5v14M8.25 5.5h7.5" {...common} />
-        <path d="M15.25 4.25c1.85 0 3 1.12 3 2.65-1.85 0-3-1.12-3-2.65Z" {...common} />
-      </svg>
-    );
-  }
-
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M4.5 17.5 9 13l3 2.5 7.5-8.5M15.5 7h4v4" {...common} />
-      <circle cx="4.5" cy="17.5" r="1.25" {...common} />
-      <circle cx="9" cy="13" r="1.25" {...common} />
-      <circle cx="12" cy="15.5" r="1.25" {...common} />
-    </svg>
-  );
-}
-
 function ChallengeMedia({ challenge, number }: { challenge: Challenge; number: string }) {
+  const primarySource = getChallengeArtSource(challenge.image_key, challenge.sort_order);
+  const fallbackSource = CHALLENGE_ART_OPTIONS.find((option) => option.key === "innovation")!.source;
+  const [source, setSource] = useState(primarySource);
   const [failed, setFailed] = useState(false);
-  const source = CHALLENGE_MEDIA[challenge.sort_order];
+  useEffect(() => { setSource(primarySource); setFailed(false); }, [primarySource]);
 
-  if (!source || failed) return <ChallengeVisual number={number} title={challenge.title} />;
+  if (failed) return <div className="challenge-media challenge-media--unavailable" aria-hidden="true"><span>Race {number}</span></div>;
   return (
     <div className="challenge-media" aria-hidden="true">
-      <img src={source} alt="" loading="lazy" onError={() => setFailed(true)} />
-      <span className="challenge-media__icon" title={`Challenge ${number} mission mark`}>
-        <ChallengeIcon order={challenge.sort_order} />
-      </span>
+      <img src={source} alt="" loading="lazy" onError={() => source === fallbackSource ? setFailed(true) : setSource(fallbackSource)} />
       <span>Race {number}</span>
     </div>
   );
