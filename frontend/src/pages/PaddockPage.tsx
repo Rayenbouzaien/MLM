@@ -16,55 +16,6 @@ interface LiveEvent {
 }
 
 /* ── Small SVG assets ────────────────────────────────────── */
-function F1CarSilhouette({ color }: { color: "cyan" | "red" }) {
-  const c = color === "cyan" ? "#00D2D2" : "#E10600";
-  return (
-    <svg viewBox="0 0 120 48" fill="none" className="w-full h-full">
-      <g opacity="0.7">
-        {/* body */}
-        <path d="M18,30 L10,28 L8,24 L14,20 L30,18 L50,16 L72,16 L90,18 L104,20 L112,24 L110,28 L100,30 Z"
-          stroke={c} strokeWidth="1.2" fill="none" />
-        {/* cockpit */}
-        <path d="M52,16 L58,10 L68,10 L74,16" stroke={c} strokeWidth="1.2" fill="none" />
-        {/* front wing */}
-        <path d="M100,28 L114,32 L112,36 L96,34" stroke={c} strokeWidth="1" fill="none" />
-        {/* rear wing */}
-        <path d="M14,22 L4,18 L4,26 L14,26" stroke={c} strokeWidth="1" fill="none" />
-        {/* rear tyre */}
-        <ellipse cx="28" cy="32" rx="7" ry="5" stroke={c} strokeWidth="1.2" fill="none" />
-        {/* front tyre */}
-        <ellipse cx="90" cy="32" rx="6" ry="5" stroke={c} strokeWidth="1.2" fill="none" />
-        {/* exhaust glow */}
-        <line x1="8" y1="24" x2="2" y2="24" stroke={c} strokeWidth="1.5" opacity="0.5" />
-      </g>
-    </svg>
-  );
-}
-
-function MiniChart({ color }: { color: "cyan" | "red" }) {
-  const c = color === "cyan" ? "#00D2D2" : "#E10600";
-  const bars = [3, 6, 4, 8, 5, 9, 6, 10, 7, 8];
-  return (
-    <svg viewBox="0 0 40 20" fill="none" className="w-10 h-5">
-      {bars.map((h, i) => (
-        <rect key={i} x={i * 4} y={20 - h * 1.8} width="3" height={h * 1.8}
-          fill={c} opacity="0.6" rx="0.5" />
-      ))}
-    </svg>
-  );
-}
-
-function CheckeredCorner() {
-  return (
-    <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none">
-      {[0,1,2].map(i => [0,1,2].map(j => (
-        <rect key={`${i}-${j}`} x={i * 8} y={j * 8} width="8" height="8"
-          fill={(i + j) % 2 === 0 ? "#fff" : "#555"} opacity="0.6" />
-      )))}
-    </svg>
-  );
-}
-
 /* ── Team Card ───────────────────────────────────────────── */
 function TeamCard({ team }: { team: Team }) {
   // No color field comes from the backend (there's nothing for a team to
@@ -85,11 +36,8 @@ function TeamCard({ team }: { team: Team }) {
         boxShadow: `0 0 18px ${border}22, inset 0 0 30px rgba(0,0,0,0.4)`,
       }}
     >
-      <div className="absolute top-2 right-2 opacity-60">
-        <CheckeredCorner />
-      </div>
-      <div className="absolute top-10 right-3">
-        <MiniChart color={carColor} />
+      <div className="absolute top-2 right-2 opacity-80">
+        <img src="/assets/gridlock/icons/flag.jpg" alt="" className="h-8 w-8 rounded border border-white/10 object-cover" />
       </div>
 
       <div className="flex items-start gap-3 pr-12">
@@ -104,8 +52,8 @@ function TeamCard({ team }: { team: Team }) {
       </h3>
       </div>
 
-      <div className="absolute bottom-3 right-2 w-28 h-14 opacity-40">
-        <F1CarSilhouette color={carColor} />
+      <div className="absolute bottom-3 right-2 h-16 w-28 overflow-hidden rounded border border-white/10 opacity-45">
+        <img src="/assets/gridlock/backgrounds/home.jpg" alt="" className="h-full w-full object-cover" />
       </div>
 
       <div className="pr-28">
@@ -219,7 +167,7 @@ export default function PaddockPage({ onOpenGarage }: { onOpenGarage: () => void
 
   return (
     <div
-      className="flex-1 overflow-auto"
+      className="flex-1 overflow-auto page-shell page-paddock"
       style={{ background: "linear-gradient(160deg,#090910 0%,#141420 100%)" }}
     >
       {/* Carbon texture overlay */}

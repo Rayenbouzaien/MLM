@@ -180,7 +180,7 @@ export default function CircuitPage() {
 
   return (
     <div
-      className="flex-1 overflow-auto"
+      className="flex-1 overflow-auto page-shell page-circuit"
       style={{ background: "linear-gradient(160deg, #0c0c0c 0%, #181818 100%)" }}
     >
       {/* Header */}

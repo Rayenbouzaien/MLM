@@ -77,7 +77,7 @@ export default function MemberPage({ onTeamJoined }: { onTeamJoined: (team: Team
   if (loading) return <main className="flex-1 p-8 text-center text-sm text-gray-400">Loading your member account…</main>;
 
   return (
-    <main className="flex-1 overflow-auto px-5 py-8 sm:px-8" style={{ background: "linear-gradient(160deg,#080810 0%,#10101a 100%)" }}>
+    <main className="flex-1 overflow-auto px-5 py-8 sm:px-8 page-shell page-member" style={{ background: "linear-gradient(160deg,#080810 0%,#10101a 100%)" }}>
       <div className="mx-auto max-w-5xl">
         <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#00D2D2]">Member control room</p>
         <h1 className="mt-2 font-headline text-3xl font-black uppercase text-white">{profile?.displayName || "Member account"}</h1>

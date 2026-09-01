@@ -44,7 +44,7 @@ function AdminLogin({ onLoggedIn }: { onLoggedIn: () => void }) {
   }
 
   return (
-    <div className="flex-1 flex items-center justify-center p-6" style={{ background: "linear-gradient(160deg,#080810 0%,#10101a 100%)" }}>
+    <div className="flex-1 flex items-center justify-center p-6 page-shell page-admin-login" style={{ background: "transparent" }}>
       <form
         onSubmit={handleSubmit}
         className="w-full rounded-lg p-8 flex flex-col gap-4"
@@ -303,7 +303,7 @@ export default function AdminPage({ onSessionChange }: { onSessionChange?: (acti
   if (!authed) return <AdminLogin onLoggedIn={() => { setAuthed(true); onSessionChange?.(true); }} />;
 
   return (
-    <div className="flex-1 p-6" style={{ background: "linear-gradient(160deg,#080810 0%,#10101a 100%)", maxWidth: 900, margin: "0 auto", width: "100%" }}>
+    <div className="flex-1 p-6 page-shell page-admin" style={{ background: "transparent", maxWidth: 900, margin: "0 auto", width: "100%" }}>
       <div className="mb-6 flex items-center justify-between gap-4"><h1 className="font-headline font-black text-white uppercase" style={{ fontSize: "1.6rem", letterSpacing: "0.05em" }}>RACE CONTROL</h1><button onClick={() => void logout()} className="text-xs uppercase tracking-widest" style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer" }}>Log out</button></div>
       <div className="flex gap-2 mb-6">
         {(["challenges", "teams"] as const).map((t) => (

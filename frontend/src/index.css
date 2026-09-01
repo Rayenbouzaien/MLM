@@ -1,102 +1,244 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&family=Titillium+Web:wght@300;400;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Orbitron:wght@400;500;700;800;900&family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 @import 'tailwindcss';
 
 @theme {
-  --color-jet-black: #0A0A0A;
-  --color-carbon: #1A1A1A;
-  --color-neon-red: #FF2D55;
-  --color-cool-grey: #666666;
+  --color-jet-black: #050608;
+  --color-carbon: #0b0d10;
+  --color-neon-red: #e10600;
+  --color-cool-grey: #7b828c;
   --font-headline: 'Orbitron', sans-serif;
   --font-body: 'Inter', sans-serif;
 }
 
 :root {
-  --jet-black: #0A0A0A;
-  --carbon: #1A1A1A;
-  --neon-red: #FF2D55;
-  --white: #FFFFFF;
-  --cool-grey: #666666;
+  --bg: #050608;
+  --panel: rgba(13, 16, 20, .82);
+  --panel-solid: #0d1014;
+  --line: rgba(255,255,255,.10);
+  --line-strong: rgba(255,255,255,.18);
+  --red: #e10600;
+  --red-bright: #ff3b30;
+  --cyan: #00d2d2;
+  --green: #42f59b;
+  --muted: #7f8791;
+  --text: #f4f6f8;
+  --font-display: 'Barlow Condensed', sans-serif;
 }
 
-* {
-  box-sizing: border-box;
-}
-
+* { box-sizing: border-box; }
+html { background: var(--bg); }
 body {
-  background-color: var(--jet-black);
-  color: var(--white);
+  background: var(--bg);
+  color: var(--text);
   font-family: 'Inter', sans-serif;
   margin: 0;
+  min-width: 320px;
+}
+button, input, textarea, select { font: inherit; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
 }
 
-.font-headline {
-  font-family: 'Orbitron', sans-serif;
-}
-
+.font-headline { font-family: 'Orbitron', sans-serif; }
 .carbon-bg {
-  background-color: var(--carbon);
-  background-image:
-    repeating-linear-gradient(
-      45deg,
-      transparent,
-      transparent 2px,
-      rgba(255,255,255,0.015) 2px,
-      rgba(255,255,255,0.015) 4px
-    ),
-    repeating-linear-gradient(
-      -45deg,
-      transparent,
-      transparent 2px,
-      rgba(255,255,255,0.015) 2px,
-      rgba(255,255,255,0.015) 4px
-    );
+  background:
+    radial-gradient(circle at 75% -10%, rgba(225,6,0,.12), transparent 34rem),
+    radial-gradient(circle at 10% 20%, rgba(0,210,210,.05), transparent 28rem),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.018) 0 1px, transparent 1px 8px),
+    #050608;
 }
+.app-shell { position: relative; isolation: isolate; }
+.app-shell::before {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: -1;
+  background: linear-gradient(rgba(255,255,255,.012) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(255,255,255,.012) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, black, transparent 80%);
+}
+
+/* Navigation */
+.app-shell > nav {
+  background: rgba(5,6,8,.88) !important;
+  border-bottom: 1px solid rgba(255,255,255,.10) !important;
+  backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 12px 40px rgba(0,0,0,.35);
+}
+.app-shell > nav button:first-child .font-headline {
+  letter-spacing: .14em;
+  text-shadow: 0 0 18px rgba(225,6,0,.18);
+}
+.app-shell > nav button:first-child .font-headline::first-letter { color: var(--red); }
+.app-shell nav li { position: relative; }
+.app-shell nav li::after {
+  content: "";
+  position: absolute; left: 50%; bottom: -8px; width: 0; height: 1px;
+  background: var(--red); transition: width .2s ease, left .2s ease;
+}
+.app-shell nav li:hover::after { width: 70%; left: 15%; }
+.app-shell nav .text-[#FF2D55] { color: var(--red) !important; }
+.app-shell nav button[style*="00D2D2"] { border-color: rgba(0,210,210,.5) !important; color: #8ffafa !important; background: rgba(0,210,210,.04) !important; }
+.app-shell nav button[style*="00D2D2"]:hover { background: rgba(0,210,210,.12) !important; box-shadow: 0 0 24px rgba(0,210,210,.12); }
+
+/* Shared page chrome */
+.page-shell {
+  position: relative;
+  isolation: isolate;
+  background-color: #07090c !important;
+  background-position: center !important;
+  background-size: cover !important;
+}
+.page-shell::before {
+  content: "";
+  position: absolute; inset: 0; pointer-events: none; z-index: -1;
+  background:
+    linear-gradient(180deg, rgba(4,5,7,.58), rgba(4,5,7,.92)),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.015) 0 1px, transparent 1px 7px);
+}
+.page-challenges { background-image: url('https://commons.wikimedia.org/wiki/Special:Redirect/file/Valtteri_Bottas_on_track%2C_Singapore_Grand_Prix_2024.jpg'), url('/assets/gridlock/backgrounds/challenges.jpg') !important; }
+.page-circuit { background-image: url('https://commons.wikimedia.org/wiki/Special:Redirect/file/Bahrain_International_Circuit_before_the_F1_race_-_2024.jpg'), url('/assets/gridlock/backgrounds/circuit.jpg') !important; }
+.page-garage { background-image: url('https://commons.wikimedia.org/wiki/Special:Redirect/file/2024_Singapore_Grand_Prix_-_Mclaren_Pit_Garage.jpg'), url('/assets/gridlock/backgrounds/garage.jpg') !important; }
+.page-paddock { background-image: url('https://commons.wikimedia.org/wiki/Special:Redirect/file/F1_Paddock_Club_-_Singapore_Grand_Prix.jpg'), url('/assets/gridlock/backgrounds/paddock.jpg') !important; }
+.page-rules { background-image: url('https://commons.wikimedia.org/wiki/Special:Redirect/file/World_Drivers%27_Championship_Trophy_at_Formula_1_Exhibition%2C_London.jpg'), url('/assets/gridlock/backgrounds/rules.jpg') !important; }
+.page-login, .page-admin-login { background-image: url('/assets/gridlock/backgrounds/home.jpg') !important; }
+.page-admin { background-image: url('https://commons.wikimedia.org/wiki/Special:Redirect/file/Race_Control_Room_-_Singapore_Grand_Prix.jpg'), url('/assets/gridlock/backgrounds/paddock.jpg') !important; }
+.page-member { background-image: url('/assets/gridlock/backgrounds/paddock.jpg') !important; }
+
+.page-shell > * { position: relative; }
+
+/* Hero */
+.home-shell { min-height: 620px; }
+.home-shell .hero-panel { min-height: 620px; }
+.home-shell .countdown-digit {
+  background: linear-gradient(180deg, rgba(18,20,24,.95), rgba(5,6,8,.98));
+  border-color: rgba(255,255,255,.14);
+  border-radius: 2px;
+  box-shadow: inset 0 0 20px rgba(0,0,0,.65), 0 8px 30px rgba(0,0,0,.28);
+}
+.home-shell .track-image-frame {
+  width: 52px; height: 52px; border-radius: 2px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: 0 8px 22px rgba(0,0,0,.45);
+}
+.home-shell .track-image-frame img { filter: saturate(.9) contrast(1.08); }
+.home-shell button[style*="FF2D55"] {
+  background: linear-gradient(110deg, #b80400, #ef1a12) !important;
+  border: 1px solid rgba(255,255,255,.15) !important;
+  box-shadow: 0 12px 34px rgba(225,6,0,.28) !important;
+}
+.home-shell button[style*="FF2D55"]:hover { box-shadow: 0 16px 46px rgba(225,6,0,.42) !important; transform: translateY(-2px) !important; }
+
+
+.challenge-card-image {
+  position: relative;
+  height: 150px;
+  overflow: hidden;
+  margin: -24px -24px 0;
+  border-bottom: 1px solid rgba(255,255,255,.10);
+}
+.challenge-card-image img {
+  width: 100%; height: 100%; object-fit: cover;
+  filter: saturate(.85) contrast(1.12);
+  transform: scale(1.02);
+  transition: transform .35s ease, filter .35s ease;
+}
+.page-challenges article:hover .challenge-card-image img {
+  transform: scale(1.07);
+  filter: saturate(1) contrast(1.16);
+}
+.challenge-card-image-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(5,6,8,.08), rgba(5,6,8,.88));
+}
+
+/* Cards / forms */
+.page-shell .rounded-lg,
+.page-shell article,
+.page-shell section {
+  backdrop-filter: blur(10px);
+}
+.page-shell input, .page-shell textarea, .page-shell select, .form-input {
+  background: rgba(7,9,12,.78) !important;
+  border-color: rgba(255,255,255,.13) !important;
+}
+.page-shell input:focus, .page-shell textarea:focus, .page-shell select:focus, .form-input:focus {
+  border-color: rgba(0,210,210,.65) !important;
+  box-shadow: 0 0 0 3px rgba(0,210,210,.08), 0 0 24px rgba(0,210,210,.08) !important;
+}
+.page-shell article, .page-shell table, .page-shell form {
+  box-shadow: 0 16px 50px rgba(0,0,0,.24);
+}
+.page-shell h1, .page-shell h2, .page-shell h3 {
+  font-family: var(--font-display);
+  letter-spacing: .035em;
+}
+.page-shell a { transition: color .2s ease, opacity .2s ease; }
+
+/* Racing section labels */
+.page-shell .text-[#00D2D2] { color: #6ff5f5 !important; }
+.page-shell .text-[#E10600] { color: #ff4b42 !important; }
+.page-shell .bg-[#E10600] { background: var(--red) !important; }
+
+/* Garage / Paddock / Challenge image treatment */
+.page-garage img, .page-paddock img, .page-challenges img, .page-rules img {
+  image-rendering: auto;
+}
+.page-garage .absolute.inset-0 { opacity: .16; }
+.page-paddock .absolute.inset-0 { opacity: .12; }
+
+/* Admin */
+.page-admin table { border-collapse: separate; border-spacing: 0; }
+.page-admin thead tr { background: rgba(225,6,0,.07) !important; }
+.page-admin tbody tr { transition: background .18s ease; }
+.page-admin tbody tr:hover { background: rgba(255,255,255,.035); }
+.page-admin button { transition: transform .16s ease, box-shadow .16s ease, background .16s ease; }
+.page-admin button:hover { transform: translateY(-1px); }
+.page-admin-login form {
+  background: rgba(8,10,13,.86) !important;
+  border-color: rgba(225,6,0,.45) !important;
+  box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 40px rgba(225,6,0,.10);
+  backdrop-filter: blur(16px);
+}
+
+/* Rules */
+.page-rules .rounded-lg { border-radius: 2px !important; }
+.page-rules .grid > div { transition: transform .2s ease, border-color .2s ease, background .2s ease; }
+.page-rules .grid > div:hover { transform: translateY(-3px); background: rgba(255,255,255,.045) !important; }
+
+/* Login */
+.page-login > div {
+  background: rgba(8,10,13,.86) !important;
+  border-color: rgba(0,210,210,.30) !important;
+  box-shadow: 0 30px 80px rgba(0,0,0,.58), 0 0 50px rgba(0,210,210,.08) !important;
+  backdrop-filter: blur(18px);
+}
+
+/* Micro UI */
+.status-dot { box-shadow: 0 0 12px currentColor; }
+@keyframes pulseRace {
+  0%,100% { opacity: .55; transform: scale(.94); }
+  50% { opacity: 1; transform: scale(1); }
+}
+.colon-blink { animation: blink 1s ease-in-out infinite; }
+@keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: .28 } }
 
 .countdown-digit {
   font-family: 'Orbitron', sans-serif;
-  background: #111;
-  border: 1px solid #333;
-  color: var(--neon-red);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  letter-spacing: 0.05em;
-  text-shadow: 0 0 12px rgba(255,45,85,0.8);
-  box-shadow: inset 0 0 12px rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--red);
+  letter-spacing: .05em;
+  text-shadow: 0 0 14px rgba(225,6,0,.65);
 }
+.red-glow { box-shadow: 0 0 24px rgba(225,6,0,.28); }
+.diagonal-clip { clip-path: polygon(0 0, 92% 0, 100% 100%, 0 100%); }
 
-.red-glow {
-  box-shadow: 0 0 20px rgba(255,45,85,0.4);
+@media (max-width: 767px) {
+  .home-shell { min-height: 0; }
+  .home-shell .hero-panel { min-height: 690px; }
+  .home-shell .track-image-frame { width: 44px; height: 44px; }
+  .page-shell { background-position: 65% center !important; }
 }
-
-.diagonal-clip {
-  clip-path: polygon(0 0, 92% 0, 100% 100%, 0 100%);
-}
-
-.form-input {
-  width: 100%;
-  border: 1px solid rgba(255,255,255,0.16);
-  border-radius: 0.25rem;
-  background: rgba(255,255,255,0.04);
-  color: #fff;
-  padding: 0.625rem 0.75rem;
-  font-family: 'Titillium Web', sans-serif;
-  font-size: 0.875rem;
-  letter-spacing: normal;
-  text-transform: none;
-  outline: none;
-}
-
-.form-input:focus {
-  border-color: #00D2D2;
-  box-shadow: 0 0 0 2px rgba(0,210,210,0.16);
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
-.colon-blink {
-  animation: blink 1s ease-in-out infinite;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }

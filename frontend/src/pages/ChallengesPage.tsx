@@ -35,6 +35,14 @@ function ChallengeCard({
 }) {
   return (
     <article className="flex flex-col gap-5 border p-6" style={{ borderColor: selected ? challenge.color : "#2a2a35", background: "#111118" }}>
+      <div className="challenge-card-image" aria-hidden="true">
+        <img
+          src={challenge.sort_order % 3 === 1 ? "/assets/gridlock/backgrounds/challenges.jpg" : challenge.sort_order % 3 === 2 ? "/assets/gridlock/backgrounds/circuit.jpg" : "/assets/gridlock/backgrounds/garage.jpg"}
+          alt=""
+        />
+        <div className="challenge-card-image-overlay" />
+      </div>
+
       <div className="flex items-start justify-between gap-4">
         <p className="text-xs font-bold uppercase tracking-[0.2em]" style={{ color: challenge.color }}>
           Challenge {String(challenge.sort_order || 0).padStart(2, "0")}
@@ -124,7 +132,7 @@ export default function ChallengesPage({ team, onLogin }: { team: TeamSession | 
   }
 
   return (
-    <main className="flex-1 bg-[#09090d] px-5 py-10 text-white sm:px-8 lg:px-12">
+    <main className="flex-1 page-shell page-challenges px-5 py-10 text-white sm:px-8 lg:px-12">
       <div className="mx-auto max-w-6xl">
         <header className="border-b border-[#2a2a35] pb-8">
           <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#00D2D2]">Gridlock / Challenge board</p>

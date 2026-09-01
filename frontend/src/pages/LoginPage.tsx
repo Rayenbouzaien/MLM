@@ -82,7 +82,7 @@ export default function LoginPage({
   const subtitle = !account ? (mode === "login" ? "Sign in with your driver handle, email, or name" : "Create your driver account first") : `Signed in as ${account.name}`;
 
   return (
-    <div className="flex-1 flex items-center justify-center p-6" style={{ background: "linear-gradient(160deg,#080810 0%,#10101a 100%)" }}>
+    <div className="flex-1 flex items-center justify-center p-6 page-shell page-login" style={{ background: "linear-gradient(160deg,#080810 0%,#10101a 100%)" }}>
       <div className="w-full rounded-lg p-8" style={{ maxWidth: 480, border: "1.5px solid rgba(0,210,210,0.4)", background: "rgba(0,210,210,0.03)", boxShadow: "0 0 30px rgba(0,210,210,0.1)" }}>
         <h1 className="font-headline font-black text-white uppercase text-center mb-1" style={{ fontSize: "1.6rem", letterSpacing: "0.05em" }}>{title}</h1>
         <p className="text-center text-gray-500 text-xs mb-6" style={{ fontFamily: "'Titillium Web',sans-serif" }}>{subtitle}</p>

@@ -35,47 +35,10 @@ function useCountdown(target: Date) {
   return time;
 }
 
-function SpeedometerIcon() {
-  return (
-    <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-      <circle cx="20" cy="22" r="15" stroke="#FF2D55" strokeWidth="1.5" fill="none" />
-      <path d="M8 30 A14 14 0 0 1 32 30" stroke="#FF2D55" strokeWidth="1.5" fill="none" />
-      <line x1="20" y1="22" x2="28" y2="14" stroke="#FF2D55" strokeWidth="2" strokeLinecap="round" />
-      <circle cx="20" cy="22" r="2" fill="#FF2D55" />
-      <line x1="10" y1="30" x2="12" y2="30" stroke="#FF2D55" strokeWidth="1.5" />
-      <line x1="30" y1="30" x2="28" y2="30" stroke="#FF2D55" strokeWidth="1.5" />
-      <line x1="20" y1="10" x2="20" y2="12" stroke="#FF2D55" strokeWidth="1.5" />
-    </svg>
-  );
-}
-function FanIcon() {
-  return (
-    <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-      <circle cx="20" cy="14" r="5" stroke="#FF2D55" strokeWidth="1.5" fill="none" />
-      <path d="M10 34 C10 26 30 26 30 34" stroke="#FF2D55" strokeWidth="1.5" fill="none" />
-      <circle cx="30" cy="12" r="3" stroke="#FF2D55" strokeWidth="1.2" fill="none" />
-      <path d="M33 10 L37 7" stroke="#FF2D55" strokeWidth="1.2" />
-      <path d="M34 13 L38 13" stroke="#FF2D55" strokeWidth="1.2" />
-      <path d="M32 16 L35 19" stroke="#FF2D55" strokeWidth="1.2" />
-    </svg>
-  );
-}
-function LeafCarIcon() {
-  return (
-    <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-      <path d="M6 24 L10 16 L28 16 L34 24 Z" stroke="#FF2D55" strokeWidth="1.5" fill="none" />
-      <circle cx="12" cy="26" r="3" stroke="#FF2D55" strokeWidth="1.5" fill="none" />
-      <circle cx="28" cy="26" r="3" stroke="#FF2D55" strokeWidth="1.5" fill="none" />
-      <path d="M28 10 C28 10 32 6 36 8 C34 12 30 12 28 10Z" stroke="#FF2D55" strokeWidth="1.2" fill="none" />
-      <line x1="30" y1="10" x2="29" y2="16" stroke="#FF2D55" strokeWidth="1.2" />
-    </svg>
-  );
-}
-
 const TRACKS = [
-  { icon: <SpeedometerIcon />, title: "AI-POWERED TELEMETRY ANALYTICS" },
-  { icon: <FanIcon />, title: "SMART FAN ENGAGEMENT PLATFORMS" },
-  { icon: <LeafCarIcon />, title: "SUSTAINABLE RACE LOGISTICS" },
+  { image: "/assets/gridlock/icons/speed.jpg", title: "AI-POWERED TELEMETRY ANALYTICS", accent: "red" },
+  { image: "/assets/gridlock/icons/teamwork.jpg", title: "SMART FAN ENGAGEMENT PLATFORMS", accent: "cyan" },
+  { image: "/assets/gridlock/icons/innovation.jpg", title: "SUSTAINABLE RACE LOGISTICS", accent: "red" },
 ];
 
 type Page = "home" | "circuit" | "paddock" | "garage" | "challenges" | "login" | "admin" | "rules";
@@ -161,7 +124,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen carbon-bg flex flex-col">
+    <div className="min-h-screen carbon-bg flex flex-col app-shell">
       {/* NAV */}
       <nav
         style={{ background: "rgba(10,10,10,0.97)", borderBottom: "1px solid #1A1A1A" }}
@@ -286,12 +249,13 @@ export default function App() {
         </div>
       )}
       {page === "home" && (
-        <div className="flex-1 flex flex-col lg:flex-row relative overflow-hidden">
+        <div className="flex-1 flex flex-col lg:flex-row relative overflow-hidden home-shell">
           {/* Left: Hero panel */}
           <div className="relative flex-1 min-h-[520px] lg:min-h-0">
             <img
               src={HERO_IMG}
               alt="Formula 1 race cars speeding at night"
+              onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = "/assets/gridlock/backgrounds/home.jpg"; }}
               className="absolute inset-0 w-full h-full object-cover"
             />
             <div
@@ -340,6 +304,7 @@ export default function App() {
               </p>
 
               <button
+                onClick={() => setPage("login")}
                 className="font-headline font-bold tracking-widest text-white uppercase py-4 px-10 rounded cursor-pointer transition-all hover:scale-105 active:scale-95 w-fit"
                 style={{
                   background: "#FF2D55",
@@ -406,8 +371,8 @@ export default function App() {
             <div className="flex flex-col gap-8">
               {TRACKS.map((track, i) => (
                 <div key={i} className="flex items-start gap-4 group cursor-pointer">
-                  <div className="shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
-                    {track.icon}
+                  <div className="track-image-frame shrink-0 opacity-90 group-hover:opacity-100 transition-opacity">
+                    <img src={track.image} alt="" className="h-full w-full object-cover" />
                   </div>
                   <p
                     className="font-headline font-bold text-white leading-tight group-hover:text-[#FF2D55] transition-colors"
