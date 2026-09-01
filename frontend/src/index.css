@@ -463,3 +463,128 @@ html, body { background: #10151b; }
 .admin-console { min-height: calc(100dvh - 5rem); background-color: #121a22 !important; }.admin-console__shell { width: min(1280px, 100%); margin: 0 auto; padding: clamp(2rem, 5vw, 4.75rem) clamp(1rem, 4vw, 3.5rem) 4rem; }.admin-console__header { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; padding-bottom: 1.8rem; border-bottom: 1px solid rgba(255,255,255,.2); }.admin-console__header p, .admin-panel__head p, .admin-form > div > p { margin: 0; color: #aeb9c4; font-family: 'Rajdhani', sans-serif; font-size: .67rem; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }.admin-console__header h1 { margin-top: .6rem; font-size: clamp(3rem, 7vw, 6.2rem); }.admin-console__header > div > span { display: block; max-width: 33rem; margin-top: 1rem; color: #c7d0d8; font-size: .92rem; line-height: 1.6; }.admin-console__header > button { border: 0; background: transparent; color: #aeb9c4; font-family: 'Rajdhani', sans-serif; font-size: .72rem; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }.admin-console__header > button:hover { color: #ff817b; }.admin-tabs { display: flex; gap: 1.7rem; margin-top: 1.5rem; border-bottom: 1px solid rgba(255,255,255,.14); }.admin-tabs button { min-height: 2.75rem; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #9ca8b5; font-family: 'Rajdhani', sans-serif; font-size: .75rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }.admin-tabs button[aria-pressed="true"] { border-color: #6ff5f5; color: #f4f6f8; }.admin-panel { padding-top: clamp(2rem, 5vw, 4.5rem); }.admin-panel__head { display: flex; align-items: end; justify-content: space-between; gap: 1rem; }.admin-panel__head h2 { margin-top: .45rem; font-size: clamp(2rem, 4vw, 3.4rem); }.admin-panel__head > button { padding: .65rem 1rem; background: transparent; color: #6ff5f5; }.admin-form { display: grid; gap: 1rem; margin-top: 1.5rem; padding: clamp(1rem, 3vw, 1.65rem); border: 1px solid rgba(111,245,245,.38); background: rgba(14,21,28,.88); }.admin-form h3 { margin-top: .35rem; font-size: 1.45rem; }.admin-form__color { grid-template-columns: max-content 2.8rem; align-items: center; }.admin-form__color input { min-height: 2rem; padding: .18rem; }.admin-form__actions { display: flex; gap: .75rem; }.admin-form__actions button + button { border-color: rgba(255,255,255,.22); background: transparent; color: #c1ccd5; }.admin-alert { margin: 1rem 0 0; padding: .75rem .9rem; border-left: 2px solid #ff5a52; background: rgba(225,6,0,.1); color: #ffd0cc; font-size: .85rem; }.admin-challenge-list { display: grid; gap: .8rem; margin-top: 1.5rem; }.admin-challenge { display: grid; grid-template-columns: 11rem minmax(0, 1.15fr) minmax(10rem, .7fr) auto; gap: 1.2rem; align-items: stretch; padding: .85rem; border: 1px solid rgba(255,255,255,.18); border-left: 3px solid var(--admin-accent); background: rgba(17,25,33,.9); }.admin-challenge-image { position: relative; min-height: 8rem; overflow: hidden; background: #0d1319; }.admin-challenge-image img { width: 100%; height: 100%; object-fit: cover; filter: saturate(.75) contrast(1.08); }.admin-challenge-image__fallback { display: grid; width: 100%; height: 100%; min-height: 8rem; place-items: center; color: var(--admin-accent); font-family: 'Rajdhani', sans-serif; font-size: 3rem; font-weight: 700; }.admin-challenge__brief, .admin-challenge__entries { align-self: center; }.admin-challenge__brief p, .admin-challenge__entries p { margin: 0; color: var(--admin-accent); font-family: 'Rajdhani', sans-serif; font-size: .63rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }.admin-challenge__brief h3 { margin-top: .45rem; font-size: 1.45rem; }.admin-challenge__brief > span { display: block; margin-top: .65rem; color: #bdc8d1; font-size: .8rem; line-height: 1.5; }.admin-challenge__entries { padding-left: 1rem; border-left: 1px solid rgba(255,255,255,.16); }.admin-challenge__entries ul { display: grid; gap: .35rem; margin: .65rem 0 0; padding: 0; list-style: none; }.admin-challenge__entries li, .admin-challenge__entries > span { color: #d6dde3; font-size: .8rem; line-height: 1.35; }.admin-challenge__entries li::before { content: "•"; margin-right: .45rem; color: var(--admin-accent); }.admin-challenge__actions { display: flex; flex-direction: column; justify-content: center; gap: .55rem; }.admin-challenge__actions button, .admin-team-table button { border: 1px solid rgba(111,245,245,.55); background: transparent; color: #8ffafa; font-family: 'Rajdhani', sans-serif; font-size: .66rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }.admin-challenge__actions button { min-width: 4.8rem; min-height: 2.35rem; }.admin-challenge__actions button + button, .admin-team-table button + button { border-color: rgba(255,129,123,.56); color: #ff9b95; }.admin-team-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: min(33rem, 100%); margin: 1.75rem 0 0; border-top: 1px solid rgba(255,255,255,.2); border-bottom: 1px solid rgba(255,255,255,.15); }.admin-team-stats div { display: grid; gap: .35rem; padding: .8rem 1rem .8rem 0; }.admin-team-stats div + div { padding-left: 1rem; border-left: 1px solid rgba(255,255,255,.14); }.admin-team-stats dt { color: #aeb9c4; font-family: 'Rajdhani', sans-serif; font-size: .64rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }.admin-team-stats dd { margin: 0; color: #f4f6f8; font-family: 'Orbitron', sans-serif; font-size: 1.1rem; }.admin-team-table { overflow-x: auto; margin-top: 1.5rem; border-top: 1px solid rgba(255,255,255,.2); }.admin-team-table table { width: 100%; min-width: 42rem; border-collapse: collapse; }.admin-team-table th { padding: .8rem; color: #9ca8b5; font-family: 'Rajdhani', sans-serif; font-size: .66rem; font-weight: 700; letter-spacing: .11em; text-align: left; text-transform: uppercase; }.admin-team-table td { padding: 1rem .8rem; border-top: 1px solid rgba(255,255,255,.11); color: #c7d0d8; font-size: .85rem; }.admin-team-table td strong { display: block; color: #f4f6f8; font-family: 'Rajdhani', sans-serif; font-size: 1.05rem; letter-spacing: .04em; text-transform: uppercase; }.admin-team-table td > span, .admin-team-table td > strong + span { display: block; margin-top: .22rem; color: #9ca8b5; font-size: .75rem; }.admin-team-table a { color: #8ffafa; }.admin-team-table b { color: #f0cf70; font-family: 'Rajdhani', sans-serif; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; }.admin-team-table b.is-ready { color: #6ff5f5; }.admin-team-table b.is-held { color: #ff9b95; }.admin-team-table td:last-child div { display: flex; justify-content: end; gap: .5rem; }.admin-team-table button { min-height: 2.2rem; padding: .4rem .6rem; }.admin-empty { padding: 2rem 1rem; border-left: 2px solid #6ff5f5; background: rgba(111,245,245,.055); }.admin-empty h3 { font-size: 1.25rem; }.admin-empty p { margin: .45rem 0 0; color: #b4bfca; font-size: .86rem; }.admin-skeleton { display: grid; gap: .8rem; margin-top: 1.5rem; }.admin-skeleton i { display: block; height: 8.8rem; background: linear-gradient(100deg, rgba(255,255,255,.035) 8%, rgba(255,255,255,.1) 18%, rgba(255,255,255,.035) 33%); background-size: 220% 100%; animation: admin-skeleton 1.2s ease-in-out infinite; }@keyframes admin-skeleton { to { background-position: -120% 0; } }
 @media (max-width: 900px) { .admin-challenge { grid-template-columns: 9rem minmax(0, 1fr); }.admin-challenge__entries { grid-column: 2; padding-left: 0; border-left: 0; }.admin-challenge__actions { grid-column: 1 / -1; flex-direction: row; justify-content: start; }.admin-challenge__actions button { min-width: 6rem; } }
 @media (max-width: 639px) { .page-shell { background-attachment: scroll !important; }.race-weekend-atmosphere { background-position: center, center, 72% center; }.challenge-media, .challenge-media img { min-height: 6rem; }.admin-console__header { align-items: start; flex-direction: column; }.admin-console__header h1 { font-size: clamp(3.5rem, 20vw, 5.4rem); }.admin-tabs { gap: 1rem; overflow-x: auto; }.admin-panel__head { align-items: start; flex-direction: column; }.admin-challenge { grid-template-columns: 1fr; gap: .9rem; }.admin-challenge-image { min-height: 9rem; }.admin-challenge__entries { grid-column: auto; padding: .85rem 0 0; border-top: 1px solid rgba(255,255,255,.14); border-left: 0; }.admin-challenge__actions { grid-column: auto; }.admin-team-stats { width: 100%; }.admin-team-stats div { padding-right: .5rem; }.admin-team-stats div + div { padding-left: .5rem; }.admin-form__actions { flex-direction: column; }.classification-panel__trophy { opacity: .3; } }
+
+/* A continuous pit-lane environment: the scene must not end in a flat black field. */
+.race-weekend,
+.challenge-board {
+  background-color: #102536 !important;
+  background-image:
+    linear-gradient(90deg, rgba(9, 20, 31, .82) 0%, rgba(10, 27, 40, .57) 48%, rgba(8, 22, 33, .31) 100%),
+    linear-gradient(180deg, rgba(8, 22, 34, .18), rgba(10, 28, 42, .58)),
+    url('/assets/challenge-pit-lane-hero.png') !important;
+  background-position: center, center, 68% center !important;
+  background-size: cover !important;
+  background-attachment: fixed !important;
+}
+
+.race-weekend-atmosphere {
+  inset: 0;
+  height: auto;
+  min-height: 0;
+  background:
+    linear-gradient(90deg, rgba(9, 20, 31, .2), rgba(9, 20, 31, .06) 58%, rgba(9, 20, 31, .18)),
+    linear-gradient(180deg, rgba(9, 20, 31, .02), rgba(9, 20, 31, .2)) !important;
+}
+
+.challenge-board__scene {
+  inset: 0;
+  height: auto;
+  min-height: 0;
+  background:
+    linear-gradient(90deg, rgba(7, 16, 25, .46) 0%, rgba(7, 16, 25, .2) 45%, rgba(7, 16, 25, .04) 100%),
+    linear-gradient(180deg, rgba(7, 16, 25, .02), rgba(12, 33, 48, .3)) !important;
+  filter: none;
+}
+
+@media (max-width: 639px) {
+  .race-weekend,
+  .challenge-board {
+    background-position: center, center, 72% center !important;
+    background-size: auto 100%, auto 100%, auto 62rem !important;
+    background-repeat: no-repeat, no-repeat, repeat-y !important;
+  }
+}
+
+/* Keep the photographic world pinned behind long-form content instead of ending with the hero. */
+.race-weekend-atmosphere,
+.challenge-board__scene {
+  position: fixed;
+  inset: 4.9rem 0 0;
+  z-index: 0;
+  min-height: 0;
+  height: auto;
+  background-image:
+    linear-gradient(90deg, rgba(7, 19, 30, .54) 0%, rgba(8, 26, 39, .3) 47%, rgba(6, 18, 29, .1) 100%),
+    linear-gradient(180deg, rgba(7, 19, 30, .08), rgba(7, 26, 40, .22)),
+    url('/assets/challenge-pit-lane-hero.png') !important;
+  background-position: center, center, 68% center !important;
+  background-size: cover !important;
+  background-attachment: fixed !important;
+  filter: saturate(.92) brightness(1.08) !important;
+}
+
+.race-weekend .race-session button:hover,
+.race-weekend .race-session button:focus-visible,
+.race-weekend .race-session.is-active button {
+  background: rgba(9, 23, 35, .56);
+}
+
+.race-weekend .workshop-lane {
+  background: linear-gradient(115deg, rgba(0, 210, 210, .13), rgba(9, 26, 39, .62) 42%);
+}
+
+/* Each route keeps its own place in the race-weekend world. */
+.race-weekend {
+  background-image:
+    linear-gradient(90deg, rgba(12, 19, 27, .78) 0%, rgba(13, 27, 38, .5) 50%, rgba(8, 18, 27, .22) 100%),
+    url('/assets/gridlock/backgrounds/my-team-pit-lane.png') !important;
+  background-position: center, 64% center !important;
+}
+
+.race-weekend-atmosphere {
+  background-image:
+    linear-gradient(90deg, rgba(12, 19, 27, .52) 0%, rgba(13, 27, 38, .25) 52%, rgba(8, 18, 27, .08) 100%),
+    linear-gradient(180deg, rgba(9, 18, 27, .08), rgba(9, 25, 36, .24)),
+    url('/assets/gridlock/backgrounds/my-team-pit-lane.png') !important;
+  background-position: center, center, 64% center !important;
+}
+
+.challenge-board {
+  background-image:
+    linear-gradient(90deg, rgba(7, 19, 30, .54) 0%, rgba(8, 26, 39, .3) 47%, rgba(6, 18, 29, .1) 100%),
+    linear-gradient(180deg, rgba(7, 19, 30, .08), rgba(7, 26, 40, .22)),
+    url('/assets/challenge-pit-lane-hero.png') !important;
+  background-position: center, center, 68% center !important;
+}
+
+.challenge-board__scene {
+  background-image:
+    linear-gradient(90deg, rgba(7, 19, 30, .54) 0%, rgba(8, 26, 39, .3) 47%, rgba(6, 18, 29, .1) 100%),
+    linear-gradient(180deg, rgba(7, 19, 30, .08), rgba(7, 26, 40, .22)),
+    url('/assets/challenge-pit-lane-hero.png') !important;
+}
+
+.rules-briefing {
+  background-color: #101f31 !important;
+  background-image:
+    linear-gradient(90deg, rgba(8, 18, 29, .76) 0%, rgba(9, 25, 39, .46) 50%, rgba(8, 17, 27, .2) 100%),
+    url('/assets/rules-awards-stage.png') !important;
+  background-position: 66% center !important;
+  background-size: cover !important;
+  background-attachment: fixed !important;
+}
+
+.rules-archive {
+  position: fixed;
+  inset: 4.9rem 0 0;
+  height: auto;
+  min-height: 0;
+  background-image:
+    linear-gradient(90deg, rgba(8, 18, 29, .58) 0%, rgba(9, 25, 39, .3) 50%, rgba(8, 17, 27, .08) 100%),
+    linear-gradient(180deg, rgba(8, 18, 29, .04), rgba(8, 25, 39, .22)),
+    url('/assets/rules-awards-stage.png') !important;
+  background-position: center, center, 66% center !important;
+  background-size: cover !important;
+  background-attachment: fixed !important;
+  filter: saturate(.88) brightness(1.04);
+}
