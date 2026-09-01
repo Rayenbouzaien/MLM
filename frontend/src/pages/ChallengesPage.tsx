@@ -38,6 +38,9 @@ function ChallengeVisual({ number, title }: { number: string; title: string }) {
   return (
     <div className="challenge-visual" aria-hidden="true">
       <span className="challenge-visual__number">{number}</span>
+      <span className="challenge-visual__icon">
+        <ChallengeIcon order={Number(number)} />
+      </span>
       <span className="challenge-visual__mark">{monogram}</span>
       <i className="challenge-visual__line challenge-visual__line--one" />
       <i className="challenge-visual__line challenge-visual__line--two" />
@@ -90,7 +93,7 @@ function ChallengeMedia({ challenge, number }: { challenge: Challenge; number: s
   return (
     <div className="challenge-media" aria-hidden="true">
       <img src={source} alt="" loading="lazy" onError={() => setFailed(true)} />
-      <span className="challenge-media__icon">
+      <span className="challenge-media__icon" title={`Challenge ${number} mission mark`}>
         <ChallengeIcon order={challenge.sort_order} />
       </span>
       <span>Race {number}</span>
