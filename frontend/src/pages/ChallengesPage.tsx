@@ -45,6 +45,43 @@ function ChallengeVisual({ number, title }: { number: string; title: string }) {
   );
 }
 
+function ChallengeIcon({ order }: { order: number }) {
+  const common = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeLinecap: "square" as const,
+    strokeLinejoin: "miter" as const,
+    strokeWidth: 1.6,
+  };
+
+  if (order === 2) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="2" {...common} />
+        <path d="M7.5 7.5a6.35 6.35 0 0 0 0 9M16.5 7.5a6.35 6.35 0 0 1 0 9M4.5 4.5a10.6 10.6 0 0 0 0 15M19.5 4.5a10.6 10.6 0 0 1 0 15" {...common} />
+      </svg>
+    );
+  }
+
+  if (order === 3) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4.5 8.5h15v10h-15zM4.5 12.5h15M12 8.5v14M8.25 5.5h7.5" {...common} />
+        <path d="M15.25 4.25c1.85 0 3 1.12 3 2.65-1.85 0-3-1.12-3-2.65Z" {...common} />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4.5 17.5 9 13l3 2.5 7.5-8.5M15.5 7h4v4" {...common} />
+      <circle cx="4.5" cy="17.5" r="1.25" {...common} />
+      <circle cx="9" cy="13" r="1.25" {...common} />
+      <circle cx="12" cy="15.5" r="1.25" {...common} />
+    </svg>
+  );
+}
+
 function ChallengeMedia({ challenge, number }: { challenge: Challenge; number: string }) {
   const [failed, setFailed] = useState(false);
   const source = CHALLENGE_MEDIA[challenge.sort_order];
@@ -53,6 +90,9 @@ function ChallengeMedia({ challenge, number }: { challenge: Challenge; number: s
   return (
     <div className="challenge-media" aria-hidden="true">
       <img src={source} alt="" loading="lazy" onError={() => setFailed(true)} />
+      <span className="challenge-media__icon">
+        <ChallengeIcon order={challenge.sort_order} />
+      </span>
       <span>Race {number}</span>
     </div>
   );
