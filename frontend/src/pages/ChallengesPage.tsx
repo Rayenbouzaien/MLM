@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { API_BASE, api, ApiError } from "../lib/api";
 
 interface TeamSession {
@@ -20,51 +20,91 @@ interface LiveEvent {
   type: "team_joined" | "submission" | "data_changed" | "team_access_revoked";
 }
 
-function ChallengeCard({
+type SyncState = "guest" | "loading" | "saved" | "saving" | "error";
+
+function challengeNumber(challenge: Challenge, index: number) {
+  return String(challenge.sort_order || index + 1).padStart(2, "0");
+}
+
+function ChallengeVisual({ number, title }: { number: string; title: string }) {
+  const monogram = title.trim().charAt(0).toUpperCase() || number;
+
+  return (
+    <div className="challenge-visual" aria-hidden="true">
+      <span className="challenge-visual__number">{number}</span>
+      <span className="challenge-visual__mark">{monogram}</span>
+      <i className="challenge-visual__line challenge-visual__line--one" />
+      <i className="challenge-visual__line challenge-visual__line--two" />
+    </div>
+  );
+}
+
+function ChallengeBrief({
   challenge,
+  number,
   selected,
-  disabled,
+  canManage,
+  isGuest,
   saving,
   onToggle,
 }: {
   challenge: Challenge;
+  number: string;
   selected: boolean;
-  disabled: boolean;
+  canManage: boolean;
+  isGuest: boolean;
   saving: boolean;
   onToggle: () => void;
 }) {
+  const actionLabel = saving
+    ? "Saving programme…"
+    : isGuest
+      ? "Participant login →"
+      : !canManage
+        ? "Team leader controls"
+        : selected
+          ? "Remove from programme →"
+          : "Enter challenge →";
+
   return (
-    <article className="flex flex-col gap-5 border p-6" style={{ borderColor: selected ? challenge.color : "#2a2a35", background: "#111118" }}>
-      <div className="challenge-card-image" aria-hidden="true">
-        <img
-          src={challenge.sort_order % 3 === 1 ? "/assets/gridlock/backgrounds/challenges.jpg" : challenge.sort_order % 3 === 2 ? "/assets/gridlock/backgrounds/circuit.jpg" : "/assets/gridlock/backgrounds/garage.jpg"}
-          alt=""
-        />
-        <div className="challenge-card-image-overlay" />
+    <article
+      className={`challenge-brief${selected ? " challenge-brief--selected" : ""}`}
+      style={{ "--challenge-accent": challenge.color } as CSSProperties}
+    >
+      <div className="challenge-brief__rail" aria-hidden="true"><i /></div>
+      <div className="challenge-brief__head">
+        <div>
+          <p>Challenge {number}</p>
+          <h2>{challenge.title}</h2>
+        </div>
+        <span className="challenge-brief__state">{selected ? "In programme" : "Available"}</span>
       </div>
 
-      <div className="flex items-start justify-between gap-4">
-        <p className="text-xs font-bold uppercase tracking-[0.2em]" style={{ color: challenge.color }}>
-          Challenge {String(challenge.sort_order || 0).padStart(2, "0")}
-        </p>
-        {selected && <span className="border px-2 py-1 text-xs font-semibold uppercase tracking-wider" style={{ borderColor: challenge.color, color: challenge.color }}>Selected</span>}
+      <div className="challenge-brief__body">
+        <ChallengeVisual number={number} title={challenge.title} />
+        <div className="challenge-brief__copy">
+          <p className="challenge-brief__label">Race brief</p>
+          <p className="challenge-brief__description">{challenge.description}</p>
+        </div>
       </div>
 
-      <div className="space-y-3">
-        <h2 className="font-headline text-2xl font-black uppercase leading-tight text-white">{challenge.title}</h2>
-        <p className="text-sm leading-6 text-gray-300" style={{ fontFamily: "'Titillium Web', sans-serif" }}>{challenge.description}</p>
-      </div>
-
-      {challenge.deliverables && <div className="border-l-2 pl-3 text-sm text-gray-400" style={{ borderColor: challenge.color }}><span className="font-semibold text-white">Deliverables: </span>{challenge.deliverables}</div>}
+      {challenge.deliverables && (
+        <div className="challenge-brief__deliverables">
+          <p>Deliverables</p>
+          <span>{challenge.deliverables}</span>
+        </div>
+      )}
 
       <button
         type="button"
-        disabled={disabled || saving}
+        aria-pressed={selected}
+        aria-label={`${selected ? "Remove" : "Enter"} ${challenge.title}${canManage ? " in your race programme" : isGuest ? "; participant login required" : "; team leader permission required"}`}
+        disabled={saving || (!canManage && !isGuest)}
         onClick={onToggle}
-        className="mt-auto w-full border px-4 py-3 text-xs font-bold uppercase tracking-[0.15em] transition-colors disabled:cursor-wait disabled:opacity-60"
-        style={{ borderColor: challenge.color, background: selected ? challenge.color : "transparent", color: selected ? "#09090d" : challenge.color }}
+        className="challenge-brief__action"
       >
-        {saving ? "Saving…" : disabled ? "Only the team leader can select" : selected ? "Remove selection" : "Select challenge"}
+        <span aria-hidden="true">{selected ? "✓" : "+"}</span>
+        {actionLabel}
       </button>
     </article>
   );
@@ -76,20 +116,32 @@ export default function ChallengesPage({ team, onLogin }: { team: TeamSession | 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [syncState, setSyncState] = useState<SyncState>(team ? "loading" : "guest");
+
+  const canManage = Boolean(team?.isLeader);
+  const selectedChallenges = useMemo(
+    () => challenges.filter((challenge) => selectedIds.has(challenge.id)),
+    [challenges, selectedIds],
+  );
 
   const load = useCallback(async () => {
     try {
       setError(null);
       const challengeResponse = await api.get<{ challenges: Challenge[] }>("/api/challenges");
       setChallenges(challengeResponse.challenges);
+
       if (team) {
+        setSyncState("loading");
         const selectionResponse = await api.get<{ challenges: Challenge[] }>("/api/challenges/me");
         setSelectedIds(new Set(selectionResponse.challenges.map((challenge) => challenge.id)));
+        setSyncState("saved");
       } else {
         setSelectedIds(new Set());
+        setSyncState("guest");
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Unable to load challenges.");
+      setSyncState("error");
+      setError(err instanceof ApiError ? err.message : "Unable to load the challenge board.");
     } finally {
       setLoading(false);
     }
@@ -104,58 +156,111 @@ export default function ChallengesPage({ team, onLogin }: { team: TeamSession | 
         const event: LiveEvent = JSON.parse(message.data);
         if (event.type === "data_changed") void load();
       } catch {
-        // Keep-alive comments are intentionally ignored.
+        // Keep-alive messages are intentionally ignored.
       }
     };
     return () => source.close();
   }, [load]);
 
   async function toggleChallenge(challengeId: string) {
-    if (!team || !team.isLeader) {
+    if (!team) {
       onLogin();
       return;
     }
+    if (!team.isLeader) return;
+
     const nextSelection = new Set(selectedIds);
     if (nextSelection.has(challengeId)) nextSelection.delete(challengeId);
     else nextSelection.add(challengeId);
 
     setSavingId(challengeId);
+    setSyncState("saving");
     setError(null);
     try {
       const response = await api.put<{ challenges: Challenge[] }>("/api/challenges/me", { challengeIds: [...nextSelection] });
       setSelectedIds(new Set(response.challenges.map((challenge) => challenge.id)));
+      setSyncState("saved");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Unable to save your challenge selections.");
+      setSyncState("error");
+      setError(err instanceof ApiError ? err.message : "Unable to save your race programme.");
     } finally {
       setSavingId(null);
     }
   }
 
   return (
-    <main className="flex-1 page-shell page-challenges px-5 py-10 text-white sm:px-8 lg:px-12">
-      <div className="mx-auto max-w-6xl">
-        <header className="border-b border-[#2a2a35] pb-8">
-          <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#00D2D2]">Gridlock / Challenge board</p>
-          <div className="mt-4 flex flex-col justify-between gap-5 md:flex-row md:items-end">
+    <main className="challenge-board page-challenges" aria-labelledby="challenge-board-title">
+      <div className="challenge-board__scene" aria-hidden="true" />
+      <div className="challenge-board__geometry" aria-hidden="true" />
+      <div className="challenge-board__shell">
+        <header className="challenge-command">
+          <p className="challenge-entry"><i />Race control <span>Programme entry</span></p>
+          <p className="challenge-command__eyebrow">MLM 3.0 · Challenge board</p>
+          <div className="challenge-command__content">
             <div>
-              <h1 className="font-headline text-4xl font-black uppercase tracking-wide sm:text-5xl">Choose your race.</h1>
-              <p className="mt-3 max-w-2xl text-gray-400">Teams can select every challenge they intend to explore. Your choices are saved to your team account.</p>
+              <h1 id="challenge-board-title">Choose <span>your race.</span></h1>
+              <p className="challenge-command__summary">Select the challenges your constructor will enter. Every confirmed entry is kept with your team account.</p>
             </div>
-            <p className="border-l-2 border-[#E10600] pl-3 text-sm text-gray-300">{team ? `${team.teamName} · ${team.isLeader ? "Team leader" : "Team member"}` : "Sign in to save your selections."}</p>
+            <dl className="challenge-command__stats" aria-label="Challenge board status">
+              <div><dt>Challenges</dt><dd>{String(challenges.length).padStart(2, "0")}</dd></div>
+              <div><dt>Selected</dt><dd>{String(selectedChallenges.length).padStart(2, "0")}</dd></div>
+              <div><dt>Entry</dt><dd>{team ? "Team" : "Guest"}</dd></div>
+            </dl>
           </div>
         </header>
 
-        {error && <p role="alert" className="mt-6 border border-red-500/60 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</p>}
+        {error && <p role="alert" className="challenge-alert">{error}</p>}
 
-        {loading ? (
-          <div className="grid grid-cols-1 gap-5 py-8 md:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading challenges">
-            {[0, 1, 2].map((item) => <div key={item} className="h-80 animate-pulse bg-[#15151e]" />)}
-          </div>
-        ) : challenges.length === 0 ? (
-          <section className="py-20 text-center" role="status"><h2 className="font-headline text-2xl font-bold uppercase">No challenges published yet</h2><p className="mt-2 text-gray-400">Race Control will publish the briefing shortly.</p></section>
-        ) : (
-          <section className="grid grid-cols-1 gap-5 py-8 md:grid-cols-2 lg:grid-cols-3" aria-label="Available challenges">
-            {challenges.map((challenge) => <ChallengeCard key={challenge.id} challenge={challenge} selected={selectedIds.has(challenge.id)} disabled={!team || !team.isLeader} saving={savingId === challenge.id} onToggle={() => void toggleChallenge(challenge.id)} />)}
+        <div className="challenge-workspace">
+          <aside className="challenge-programme" aria-label="Race programme">
+            <div className="challenge-programme__heading">
+              <p>Constructor programme</p>
+              <h2>{team ? team.teamName : "Guest entry"}</h2>
+            </div>
+            <div className="challenge-programme__count">
+              <strong>{String(selectedChallenges.length).padStart(2, "0")}</strong>
+              <span>/ {String(challenges.length).padStart(2, "0")} entered</span>
+            </div>
+            <ol className="challenge-programme__list">
+              {selectedChallenges.length > 0 ? selectedChallenges.map((challenge, index) => (
+                <li key={challenge.id} style={{ "--programme-accent": challenge.color } as CSSProperties}>
+                  <span>{challengeNumber(challenge, index)}</span>{challenge.title}
+                </li>
+              )) : <li className="challenge-programme__empty">{team ? "No challenges entered yet." : "Sign in to build and save your programme."}</li>}
+            </ol>
+            <p className={`challenge-programme__sync challenge-programme__sync--${syncState}`} aria-live="polite">
+              <i />{syncState === "saving" ? "Saving entry" : syncState === "saved" ? "Programme synced" : syncState === "loading" ? "Checking programme" : syncState === "error" ? "Programme needs attention" : "Participant login required"}
+            </p>
+            {!team && <button type="button" className="challenge-programme__login" onClick={onLogin}>Participant login →</button>}
+            {team && !team.isLeader && <p className="challenge-programme__notice">Only your team leader can change entries.</p>}
+          </aside>
+
+          <section className="challenge-races" aria-label="Available race challenges">
+            <div className="challenge-races__heading"><p>Race programme</p><span>Multiple entries available</span></div>
+            {loading ? (
+              <div className="challenge-loading" aria-busy="true" aria-label="Loading challenges"><i /><i /><i /></div>
+            ) : challenges.length === 0 ? (
+              <section className="challenge-empty" role="status"><h2>No challenges published yet</h2><p>Race Control will publish the briefing shortly.</p></section>
+            ) : challenges.map((challenge, index) => (
+              <ChallengeBrief
+                key={challenge.id}
+                challenge={challenge}
+                number={challengeNumber(challenge, index)}
+                selected={selectedIds.has(challenge.id)}
+                canManage={canManage}
+                isGuest={!team}
+                saving={savingId === challenge.id}
+                onToggle={() => void toggleChallenge(challenge.id)}
+              />
+            ))}
+          </section>
+        </div>
+
+        {!loading && challenges.length > 0 && (
+          <section className="challenge-finish" aria-labelledby="programme-finish-title">
+            <p>Programme complete</p>
+            <h2 id="programme-finish-title">Your race programme</h2>
+            <span>{selectedChallenges.length === 0 ? "Select one or more challenges to shape your entry." : `${selectedChallenges.length} challenge${selectedChallenges.length === 1 ? "" : "s"} confirmed in your programme.`}</span>
           </section>
         )}
       </div>

@@ -113,7 +113,7 @@ function F1Blueprint({ teamName }: { teamName: string }) {
         <text x="240" y="148" textAnchor="middle"
           fontFamily="'Titillium Web',sans-serif" fontSize="7"
           fill="#00D2D2" letterSpacing="2" opacity="0.6">
-          CONSTRUCTOR #3 · GRIDLOCK 2026
+          MACHINE LEARNING MARATHON 3.0
         </text>
 
         {/* Annotation lines */}

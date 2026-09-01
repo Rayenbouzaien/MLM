@@ -3,15 +3,14 @@ import { api, ApiError } from "../lib/api";
 
 interface Account { id: string; name: string; email?: string; handle?: string; techStack?: string[]; licenceLevel?: string; roleType?: string; teams?: Team[] }
 interface Team { id: string; teamName: string; memberId: string; memberName: string; isLeader: boolean; memberCount: number; pitPassCode?: string }
-type TeamAction = "leader" | "member" | "free-agent";
+type TeamAction = "leader" | "member";
 
 export default function LoginPage({
   onAuthed,
   account: existingAccount,
   onAccount,
   onAccountLogout,
-  onFreeAgent,
-}: { onAuthed: (team: Team) => void; account?: Account | null; onAccount?: (account: Account) => void; onAccountLogout?: () => void; onFreeAgent?: () => void }) {
+}: { onAuthed: (team: Team) => void; account?: Account | null; onAccount?: (account: Account) => void; onAccountLogout?: () => void }) {
   const [mode, setMode] = useState<"login" | "register">(existingAccount ? "register" : "login");
   const [account, setAccount] = useState<Account | null>(existingAccount ?? null);
   const [action, setAction] = useState<TeamAction>(existingAccount?.teams?.length ? "member" : "leader");
@@ -44,13 +43,6 @@ export default function LoginPage({
         if (mode === "login" && result.teams.length > 0) {
           onAuthed(result.teams[0]);
         }
-        return;
-      }
-
-      if (action === "free-agent") {
-        const result = await api.post<{ account: Account }>("/api/auth/account/free-agent");
-        onAccount?.({ ...account, ...result.account, teams: account.teams });
-        onFreeAgent?.();
         return;
       }
 
@@ -110,8 +102,8 @@ export default function LoginPage({
               <input type="password" required minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" className="mt-1 w-full px-3 py-2.5 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
             </label>
           </> : <>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {(["leader", "member", "free-agent"] as const).filter((option) => option !== "leader" || canCreateTeam).map((option) => <button key={option} type="button" onClick={() => setAction(option)} className="rounded py-3 text-[10px] font-bold uppercase tracking-[0.12em]" style={{ background: action === option ? "#00D2D2" : "transparent", color: action === option ? "#05070a" : "#cbd5e1", border: "1px solid rgba(255,255,255,0.15)" }}>{option === "leader" ? "Found Team" : option === "member" ? "Join Garage" : "Free Agent"}</button>)}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {(["leader", "member"] as const).filter((option) => option !== "leader" || canCreateTeam).map((option) => <button key={option} type="button" onClick={() => setAction(option)} className="rounded py-3 text-[10px] font-bold uppercase tracking-[0.12em]" style={{ background: action === option ? "#00D2D2" : "transparent", color: action === option ? "#05070a" : "#cbd5e1", border: "1px solid rgba(255,255,255,0.15)" }}>{option === "leader" ? "Found Team" : "Join Garage"}</button>)}
             </div>
             {action === "leader" && <>
               <label className="text-gray-500 text-xs tracking-widest uppercase">Team Name
@@ -132,10 +124,9 @@ export default function LoginPage({
                 <input type="password" required minLength={8} value={teamPassword} onChange={(event) => setTeamPassword(event.target.value)} placeholder="Team password" className="mt-1 w-full px-3 py-2.5 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
               </label>
             </>}
-            {action === "free-agent" && <p className="border border-[#00D2D2]/30 bg-[#00D2D2]/5 p-4 text-sm text-gray-300">You will remain an individual free agent until you join a team with a Pit Pass Code.</p>}
           </>}
           {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
-          <button type="submit" disabled={loading} className="w-full py-3 rounded font-black uppercase tracking-widest" style={{ background: "#E10600", color: "#fff", border: "none", cursor: loading ? "wait" : "pointer", opacity: loading ? 0.7 : 1 }}>{loading ? "..." : !account ? (mode === "register" ? "CREATE ACCOUNT" : "LOG IN") : action === "leader" ? "CREATE TEAM" : action === "member" ? "JOIN TEAM" : "ENTER FREE AGENT POOL"}</button>
+          <button type="submit" disabled={loading} className="w-full py-3 rounded font-black uppercase tracking-widest" style={{ background: "#E10600", color: "#fff", border: "none", cursor: loading ? "wait" : "pointer", opacity: loading ? 0.7 : 1 }}>{loading ? "..." : !account ? (mode === "register" ? "CREATE ACCOUNT" : "LOG IN") : action === "leader" ? "CREATE TEAM" : "JOIN TEAM"}</button>
         </form>
         {!existingAccount && !account && <button onClick={switchMode} className="w-full text-center mt-5 text-xs" style={{ color: "#00D2D2", background: "none", border: "none", cursor: "pointer" }}>{mode === "login" ? "New here? Create an account" : "Already have an account? Log in"}</button>}
         {account && <button type="button" onClick={onAccountLogout} className="w-full text-center mt-5 text-xs" style={{ color: "#FF2D55", background: "none", border: "none", cursor: "pointer" }}>Log out of account</button>}

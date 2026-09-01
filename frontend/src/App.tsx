@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, type CSSProperties } from "react";
 import CircuitPage from "./pages/CircuitPage";
 import PaddockPage from "./pages/PaddockPage";
 import GaragePage from "./pages/GaragePage";
@@ -11,7 +11,41 @@ import { API_BASE, api } from "./lib/api";
 const HERO_IMG =
   "https://images.unsplash.com/photo-1784565646478-584a622b0933?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwzfHxGb3JtdWxhJTIwMSUyMHJhY2UlMjBjYXJzJTIwc3BlZWQlMjB0cmFjayUyMG5pZ2h0fGVufDF8fHx8MTc4Nzc1MjAzM3ww&ixlib=rb-4.1.0&q=80&w=1080";
 
-const TARGET = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000 + 14 * 60 * 60 * 1000 + 55 * 60 * 1000 + 21 * 1000);
+const TARGET = new Date("2026-10-10T14:00:00+01:00");
+const MLM_LOGO = "/assets/mlm3-official-logo.png";
+const IEEE_LOGO = "/assets/ieee-essths-computer-society.png";
+const STUDRZ_LOGO = "/assets/studrz.png";
+const STARTUP_ASSETS = [
+  HERO_IMG,
+  MLM_LOGO,
+  IEEE_LOGO,
+  STUDRZ_LOGO,
+  "/assets/gridlock/backgrounds/my-team-pit-lane.png",
+];
+
+function preloadImage(source: string, timeoutMs = 7000) {
+  return new Promise<void>((resolve) => {
+    const image = new Image();
+    const finish = () => {
+      window.clearTimeout(timeout);
+      image.onload = null;
+      image.onerror = null;
+      resolve();
+    };
+    const timeout = window.setTimeout(finish, timeoutMs);
+    image.onload = finish;
+    image.onerror = finish;
+    image.src = source;
+  });
+}
+
+function waitForDocumentReadiness() {
+  const documentLoaded = document.readyState === "complete"
+    ? Promise.resolve()
+    : new Promise<void>((resolve) => window.addEventListener("load", () => resolve(), { once: true }));
+  const fontsLoaded = document.fonts?.ready.catch(() => undefined) ?? Promise.resolve();
+  return Promise.all([documentLoaded, fontsLoaded]);
+}
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -31,14 +65,14 @@ function useCountdown(target: Date) {
   useEffect(() => {
     const id = setInterval(() => setTime(calc()), 1000);
     return () => clearInterval(id);
-  });
+  }, [target]);
   return time;
 }
 
 const TRACKS = [
-  { image: "/assets/gridlock/icons/speed.jpg", title: "AI-POWERED TELEMETRY ANALYTICS", accent: "red" },
-  { image: "/assets/gridlock/icons/teamwork.jpg", title: "SMART FAN ENGAGEMENT PLATFORMS", accent: "cyan" },
-  { image: "/assets/gridlock/icons/innovation.jpg", title: "SUSTAINABLE RACE LOGISTICS", accent: "red" },
+  { code: "ML", title: "Machine Learning foundations & data science", accent: "red" },
+  { code: "CNN", title: "Convolutional networks & transfer learning", accent: "cyan" },
+  { code: "AI", title: "Overnight AI hackathon & mentoring", accent: "red" },
 ];
 
 type Page = "home" | "circuit" | "paddock" | "garage" | "challenges" | "login" | "admin" | "rules";
@@ -59,6 +93,81 @@ export default function App() {
   const [account, setAccount] = useState<{ id: string; name: string; teams?: { id: string; teamName: string; memberId: string; memberName: string; isLeader: boolean; memberCount: number; pitPassCode?: string }[] } | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [accessNotice, setAccessNotice] = useState<string | null>(null);
+  const [isPageTransitioning, setIsPageTransitioning] = useState(false);
+  const [isLaunchVisible, setIsLaunchVisible] = useState(true);
+  const [isLaunchLeaving, setIsLaunchLeaving] = useState(false);
+  const [launchProgress, setLaunchProgress] = useState(0);
+  const [startupResourcesReady, setStartupResourcesReady] = useState(false);
+  const transitionTimers = useRef<number[]>([]);
+  const launchStartedAt = useRef(performance.now());
+
+  function navigateTo(nextPage: Page) {
+    if (nextPage === page) return;
+
+    setMenuOpen(false);
+    transitionTimers.current.forEach(window.clearTimeout);
+    transitionTimers.current = [];
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setPage(nextPage);
+      return;
+    }
+
+    setIsPageTransitioning(true);
+    transitionTimers.current = [
+      window.setTimeout(() => setPage(nextPage), 240),
+      window.setTimeout(() => setIsPageTransitioning(false), 680),
+    ];
+  }
+
+  useEffect(() => () => transitionTimers.current.forEach(window.clearTimeout), []);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setIsLaunchVisible(false);
+      return;
+    }
+
+    let cancelled = false;
+    let readinessTimeout: number | undefined;
+    let settledAssets = 0;
+
+    const assetsLoaded = Promise.all(STARTUP_ASSETS.map((asset) => preloadImage(asset).finally(() => {
+      settledAssets += 1;
+      if (!cancelled) setLaunchProgress(Math.round((settledAssets / STARTUP_ASSETS.length) * 100));
+    })));
+    const readyOrTimedOut = Promise.race([
+      Promise.all([assetsLoaded, waitForDocumentReadiness()]),
+      new Promise<void>((resolve) => { readinessTimeout = window.setTimeout(resolve, 8000); }),
+    ]);
+
+    void readyOrTimedOut.then(() => {
+      if (readinessTimeout) window.clearTimeout(readinessTimeout);
+      if (cancelled) return;
+      setStartupResourcesReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+      if (readinessTimeout) window.clearTimeout(readinessTimeout);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!startupResourcesReady || !authChecked || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const remainingIntro = Math.max(0, 900 - (performance.now() - launchStartedAt.current));
+    let dismissTimer: number | undefined;
+    const exitTimer = window.setTimeout(() => {
+      setIsLaunchLeaving(true);
+      dismissTimer = window.setTimeout(() => setIsLaunchVisible(false), 460);
+    }, remainingIntro);
+
+    return () => {
+      window.clearTimeout(exitTimer);
+      if (dismissTimer) window.clearTimeout(dismissTimer);
+    };
+  }, [authChecked, startupResourcesReady]);
 
   useEffect(() => {
     const syncPageFromUrl = () => setPage(window.location.pathname === "/admin" ? "admin" : "home");
@@ -125,34 +234,36 @@ export default function App() {
 
   return (
     <div className="min-h-screen carbon-bg flex flex-col app-shell">
+      {isLaunchVisible && (
+        <div className={`mlm-launch-loader${isLaunchLeaving ? " is-leaving" : ""}`} role="status" aria-label="Preparing the grid">
+          <div className="mlm-launch-loader__brand">
+            <img src={MLM_LOGO} alt="Machine Learning Marathon 3.0" />
+            <div className="mlm-launch-loader__rail" aria-hidden="true" style={{ "--launch-progress": launchProgress / 100 } as CSSProperties} />
+          </div>
+          <p>Loading event systems <span>{launchProgress}%</span></p>
+        </div>
+      )}
       {/* NAV */}
       <nav
         style={{ background: "rgba(10,10,10,0.97)", borderBottom: "1px solid #1A1A1A" }}
-        className="sticky top-0 z-50 px-6 py-3 flex items-center justify-between"
+        className="sticky top-0 z-50 flex items-center justify-between px-5 py-2 lg:px-6"
       >
         <button
-          onClick={() => setPage("home")}
-          className="flex items-center gap-3 cursor-pointer bg-transparent border-none p-0"
+          onClick={() => navigateTo("home")}
+          className="flex h-12 w-52 items-center cursor-pointer border-none bg-transparent p-0 sm:h-14 sm:w-64 lg:h-16 lg:w-72"
         >
-          <div>
-            <div className="font-headline font-black text-white text-xl leading-none tracking-wider">
-              GRIDLOCK
-            </div>
-            <div className="text-xs text-gray-400 font-light tracking-widest mt-0.5">
-              Formula 1 Hackathon
-            </div>
-          </div>
+          <img src={MLM_LOGO} alt="Machine Learning Marathon 3.0" className="h-full w-full scale-90 object-cover object-[center_62%]" />
         </button>
 
         {/* Desktop nav */}
-        <ul className="hidden md:flex items-center gap-8">
+        <ul className="hidden md:flex items-center gap-5 lg:gap-8">
           {NAV_ITEMS.map((item) => {
             const active = item.page === page;
             return (
               <li
                 key={item.label}
                 className="text-center cursor-pointer group"
-                onClick={() => item.page && setPage(item.page)}
+                onClick={() => item.page && navigateTo(item.page)}
               >
                 <div
                   className={`font-semibold text-sm tracking-wide ${active ? "text-white" : "text-gray-300 group-hover:text-white"} transition-colors`}
@@ -186,6 +297,16 @@ export default function App() {
         </button>
 
         {/* Desktop team session control */}
+        <div className="hidden items-center gap-3 xl:flex">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">Co-organized by</span>
+          <a href="https://essths.ieee.tn/chapters/cs" target="_blank" rel="noreferrer" aria-label="Visit the IEEE ESSTHS Computer Society website">
+            <img src={IEEE_LOGO} alt="IEEE ESSTHS Computer Society Student Branch Chapter" className="h-10 w-20 object-contain" />
+          </a>
+          <a href="https://www.studrz.com" target="_blank" rel="noreferrer" aria-label="Visit the Studrz website">
+            <img src={STUDRZ_LOGO} alt="Studrz" className="h-7 w-16 object-contain" />
+          </a>
+        </div>
+
         <div className="hidden md:block">
           {team ? (
             <div className="flex items-center gap-3">
@@ -213,7 +334,7 @@ export default function App() {
             <div
               key={item.label}
               className="py-2 border-b border-[#1A1A1A] last:border-0 cursor-pointer"
-              onClick={() => { item.page && setPage(item.page); setMenuOpen(false); }}
+              onClick={() => item.page && navigateTo(item.page)}
             >
               <span className={`font-semibold text-sm ${item.page === page ? "text-[#FF2D55]" : "text-white"}`}>
                 {item.label}
@@ -234,10 +355,23 @@ export default function App() {
               </button>
             )}
           </div>
+          <div className="flex items-center justify-center gap-4 pt-4">
+            <a href="https://essths.ieee.tn/chapters/cs" target="_blank" rel="noreferrer" aria-label="Visit the IEEE ESSTHS Computer Society website">
+              <img src={IEEE_LOGO} alt="IEEE ESSTHS Computer Society Student Branch Chapter" className="h-9 w-20 object-contain" />
+            </a>
+            <a href="https://www.studrz.com" target="_blank" rel="noreferrer" aria-label="Visit the Studrz website">
+              <img src={STUDRZ_LOGO} alt="Studrz" className="h-7 w-16 object-contain" />
+            </a>
+          </div>
         </div>
       )}
 
       {/* PAGE CONTENT */}
+      {isPageTransitioning && (
+        <div className="race-page-transition" aria-hidden="true">
+          <img src={MLM_LOGO} alt="" />
+        </div>
+      )}
       {accessNotice && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-5" role="alertdialog" aria-modal="true" aria-labelledby="account-status-title">
           <div className="w-full max-w-md border border-[#E10600] bg-[#111118] p-6 shadow-2xl">
@@ -255,7 +389,7 @@ export default function App() {
             <img
               src={HERO_IMG}
               alt="Formula 1 race cars speeding at night"
-              onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = "/assets/gridlock/backgrounds/home.jpg"; }}
+              onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = "/assets/gridlock/backgrounds/my-team-pit-lane.png"; }}
               className="absolute inset-0 w-full h-full object-cover"
             />
             <div
@@ -291,16 +425,16 @@ export default function App() {
                   maxWidth: "620px",
                 }}
               >
-                THE RACE FOR INNOVATION
+                MACHINE LEARNING
                 <br />
-                STARTS HERE.
+                MARATHON 3.0
               </h1>
 
               <p
                 className="text-gray-300 mb-8 font-light tracking-wide"
                 style={{ fontSize: "clamp(0.95rem, 2vw, 1.15rem)", maxWidth: "480px" }}
               >
-                24 Hours to Prototype. Max Speed. Zero Friction.
+                Formula 1: The AI Grand Prix. Two days of AI workshops, an overnight hackathon, and a final podium at ESSTHS Hammam-Sousse.
               </p>
 
               <button
@@ -320,7 +454,7 @@ export default function App() {
               <div className="mt-10">
                 <div className="font-headline text-xs tracking-[0.4em] text-gray-400 mb-4 uppercase flex items-center gap-3">
                   <div className="h-px flex-1 max-w-12" style={{ background: "#333" }} />
-                  LIGHTS OUT
+                  10–11 OCTOBER 2026
                   <div className="h-px flex-1 max-w-12" style={{ background: "#333" }} />
                 </div>
                 <div className="flex items-end gap-3">
@@ -363,16 +497,16 @@ export default function App() {
             style={{ background: "rgba(10,10,10,0.95)", borderLeft: "1px solid #1A1A1A" }}
           >
             <h2 className="font-headline font-bold text-white uppercase mb-8 tracking-wider" style={{ fontSize: "1rem" }}>
-              FEATURED
+              ON THE GRID
               <br />
-              TRACKS
+              THIS EDITION
             </h2>
             <div className="h-px mb-8 w-full" style={{ background: "linear-gradient(to right, #FF2D55, transparent)" }} />
             <div className="flex flex-col gap-8">
               {TRACKS.map((track, i) => (
                 <div key={i} className="flex items-start gap-4 group cursor-pointer">
-                  <div className="track-image-frame shrink-0 opacity-90 group-hover:opacity-100 transition-opacity">
-                    <img src={track.image} alt="" className="h-full w-full object-cover" />
+                  <div className={`track-image-frame track-marker track-marker-${track.accent} shrink-0 opacity-90 group-hover:opacity-100 transition-opacity`} aria-hidden="true">
+                    {track.code}
                   </div>
                   <p
                     className="font-headline font-bold text-white leading-tight group-hover:text-[#FF2D55] transition-colors"
@@ -390,12 +524,12 @@ export default function App() {
 
       {page === "circuit" && <CircuitPage />}
       {page === "paddock" && (
-        <PaddockPage onOpenGarage={() => setPage(team ? "garage" : "login")} />
+        <PaddockPage onOpenGarage={() => setPage(team ? "garage" : "login")} teamName={team?.teamName} />
       )}
       {page === "garage" && (team ? <GaragePage onBack={() => setPage("paddock")} team={team} /> : <LoginPage onAuthed={(t) => { setTeam(t); setPage("garage"); }} />)}
       {page === "challenges" && <ChallengesPage team={team} onLogin={() => setPage("login")} />}
       {page === "rules" && <RulesPrizesPage />}
-      {page === "login" && <LoginPage account={account} onAccount={setAccount} onAccountLogout={() => void handleAccountLogout()} onFreeAgent={() => setPage("paddock")} onAuthed={(t) => { setTeam(t); setPage("garage"); }} />}
+      {page === "login" && <LoginPage account={account} onAccount={setAccount} onAccountLogout={() => void handleAccountLogout()} onAuthed={(t) => { setTeam(t); setPage("garage"); }} />}
       {page === "admin" && <AdminPage onSessionChange={(active) => { if (active) setTeam(null); }} />}
 
       {/* Bottom teaser — home only */}
@@ -410,7 +544,11 @@ export default function App() {
         </div>
       )}
 
-      <footer className="py-3 px-8 text-center text-xs text-gray-700" style={{ background: "#0A0A0A", borderTop: "1px solid #1A1A1A" }}>GRIDLOCK / Formula 1 Hackathon</footer>
+      <footer className="border-t border-white/10 bg-[#0A0A0A] px-6 py-6">
+        <div className="mx-auto flex max-w-5xl items-center justify-center">
+          <p className="text-center text-xs leading-5 text-gray-400 sm:text-left">Machine Learning Marathon 3.0 · Formula 1: The AI Grand Prix<br />10–11 October 2026 · ESSTHS, Hammam-Sousse</p>
+        </div>
+      </footer>
     </div>
   );
 }
