@@ -43,6 +43,9 @@ router.get("/me", requireTeam, async (req, res, next) => {
 });
 
 router.put("/me", requireTeam, async (req, res, next) => {
+  if (!req.team.isLeader) {
+    return res.status(403).json({ error: "Only the team leader can select challenges." });
+  }
   const parsed = selectionsSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "challengeIds must be an array of challenge ids." });

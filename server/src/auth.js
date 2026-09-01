@@ -15,12 +15,9 @@ if (!JWT_SECRET || JWT_SECRET.length < 16) {
   );
 }
 
-const COOKIE_NAMES = {
-  team: "team_session",
-  member: "member_session",
-  admin: "admin_session",
-};
-const LEGACY_COOKIE_NAME = "session";
+const TEAM_COOKIE_NAME = "team_session";
+const ACCOUNT_COOKIE_NAME = "account_session";
+const ADMIN_COOKIE_NAME = "admin_session";
 const TOKEN_TTL = "12h";
 
 // Cross-site cookies (Vercel frontend + Render API, different domains)
@@ -64,44 +61,64 @@ function verifySession(token) {
   }
 }
 
-export function setSessionCookie(res, payload) {
-  res.cookie(COOKIE_NAMES[payload.role], signSession(payload), COOKIE_OPTS);
+export function setTeamSessionCookie(res, payload) {
+  res.cookie(TEAM_COOKIE_NAME, signSession(payload), COOKIE_OPTS);
 }
 
-export function clearSessionCookie(res, role) {
-  if (Array.isArray(role)) role.forEach((name) => res.clearCookie(COOKIE_NAMES[name], { ...COOKIE_OPTS, maxAge: undefined }));
-  else if (role) res.clearCookie(COOKIE_NAMES[role], { ...COOKIE_OPTS, maxAge: undefined });
-  else Object.values(COOKIE_NAMES).forEach((name) => res.clearCookie(name, { ...COOKIE_OPTS, maxAge: undefined }));
-  res.clearCookie(LEGACY_COOKIE_NAME, { ...COOKIE_OPTS, maxAge: undefined });
+export function setAccountSessionCookie(res, payload) {
+  res.cookie(ACCOUNT_COOKIE_NAME, signSession(payload), COOKIE_OPTS);
+}
+
+export function setAdminSessionCookie(res, payload) {
+  res.cookie(ADMIN_COOKIE_NAME, signSession(payload), COOKIE_OPTS);
+}
+
+export function clearSessionCookie(res, cookieName = TEAM_COOKIE_NAME) {
+  res.clearCookie(cookieName, { ...COOKIE_OPTS, maxAge: undefined });
+}
+
+export function clearTeamSessionCookie(res) {
+  clearSessionCookie(res, TEAM_COOKIE_NAME);
+}
+
+export function clearAccountSessionCookie(res) {
+  clearSessionCookie(res, ACCOUNT_COOKIE_NAME);
+}
+
+export function clearAdminSessionCookie(res) {
+  clearSessionCookie(res, ADMIN_COOKIE_NAME);
 }
 
 export async function requireTeam(req, res, next) {
-  const claims = verifySession(req.cookies?.[COOKIE_NAMES.team]);
+  const claims = verifySession(req.cookies?.[TEAM_COOKIE_NAME]);
   if (!claims || claims.role !== "team") {
     return res.status(401).json({ error: "Not logged in." });
   }
   try {
     const result = await pool.query(
-      `SELECT t.id, t.team_name, t.description, t.logo_url, t.banned,
-              m.id AS member_id, m.display_name, m.role AS member_role
+      `SELECT t.id, t.team_name, t.banned, t.member_count, t.pit_pass_code,
+              t.track_id, c.title AS track_title, c.color AS track_color,
+              m.id AS member_id, m.member_name, m.is_leader
        FROM teams t
-       LEFT JOIN members m ON m.id = $2 AND m.team_id = t.id
+       LEFT JOIN challenges c ON c.id = t.track_id
+       LEFT JOIN team_members m ON m.id = $2 AND m.team_id = t.id
        WHERE t.id = $1`,
       [claims.teamId, claims.memberId || null],
     );
     const team = result.rows[0];
     if (!team || team.banned || (claims.memberId && !team.member_id)) {
-      clearSessionCookie(res, "team");
+      clearTeamSessionCookie(res);
       return res.status(403).json({ error: "This team has been suspended. Contact an organizer." });
     }
     req.team = {
       id: team.id,
       teamName: team.team_name,
-      description: team.description,
-      logoUrl: team.logo_url,
-      memberId: team.member_id,
-      memberName: team.display_name,
-      memberRole: team.member_role,
+      memberId: team.member_id || null,
+      memberName: team.member_name || team.team_name,
+      isLeader: claims.memberId ? Boolean(team.is_leader) : true,
+      memberCount: team.member_count,
+      pitPassCode: team.pit_pass_code,
+      selectedTrack: team.track_id ? { id: team.track_id, title: team.track_title, color: team.track_color } : null,
     };
     return next();
   } catch (err) {
@@ -109,50 +126,28 @@ export async function requireTeam(req, res, next) {
   }
 }
 
-export async function requireMember(req, res, next) {
-  const claims = verifySession(req.cookies?.[COOKIE_NAMES.member]);
-  if (!claims || claims.role !== "member") {
-    return res.status(401).json({ error: "Member login required." });
+export async function requireAccount(req, res, next) {
+  const claims = verifySession(req.cookies?.[ACCOUNT_COOKIE_NAME]);
+  if (!claims || claims.role !== "account") return res.status(401).json({ error: "Account login required." });
+  const result = await pool.query("SELECT id, account_name, email, handle, tech_stack, licence_level, role_type FROM accounts WHERE id = $1", [claims.accountId]);
+  if (!result.rows[0]) {
+    clearAccountSessionCookie(res);
+    return res.status(401).json({ error: "Account login required." });
   }
-  try {
-    const result = await pool.query(
-      `SELECT m.id, m.display_name, m.email, m.team_id, m.role,
-              t.team_name, t.description, t.logo_url, t.banned AS team_banned
-       FROM members m
-       LEFT JOIN teams t ON t.id = m.team_id
-       WHERE m.id = $1`,
-      [claims.memberId],
-    );
-    const member = result.rows[0];
-    if (!member) {
-      clearSessionCookie(res, "member");
-      return res.status(401).json({ error: "Member login required." });
-    }
-    req.member = {
-      id: member.id,
-      displayName: member.display_name,
-      email: member.email,
-      teamId: member.team_id,
-      role: member.role,
-      team: member.team_id && !member.team_banned
-        ? { id: member.team_id, teamName: member.team_name, description: member.description, logoUrl: member.logo_url }
-        : null,
-    };
-    return next();
-  } catch (err) {
-    return next(err);
-  }
-}
-
-export function requireLeader(req, res, next) {
-  if (!req.team?.memberId || req.team.memberRole !== "leader") {
-    return res.status(403).json({ error: "Team leader access is required." });
-  }
+  req.account = {
+    id: result.rows[0].id,
+    name: result.rows[0].account_name,
+    email: result.rows[0].email,
+    handle: result.rows[0].handle,
+    techStack: result.rows[0].tech_stack,
+    licenceLevel: result.rows[0].licence_level,
+    roleType: result.rows[0].role_type,
+  };
   return next();
 }
 
 export function requireAdmin(req, res, next) {
-  const claims = verifySession(req.cookies?.[COOKIE_NAMES.admin]);
+  const claims = verifySession(req.cookies?.[ADMIN_COOKIE_NAME]);
   if (!claims || claims.role !== "admin") {
     return res.status(401).json({ error: "Admin login required." });
   }

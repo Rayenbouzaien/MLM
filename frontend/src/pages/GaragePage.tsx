@@ -187,7 +187,7 @@ function ProgressTracker() {
 
 /* ── Member row ──────────────────────────────────────────── */
 function Avatar({ name }: { name: string }) {
-  const initials = name.trim().split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+  const initials = name.replace("User_", "").slice(0, 2).toUpperCase();
   return (
     <div
       className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
@@ -224,33 +224,37 @@ function DigitBox({ value, label }: { value: string; label: string }) {
 }
 
 /* ── Page ────────────────────────────────────────────────── */
-interface RosterMember {
-  id: string;
-  displayName: string;
-  role: "leader" | "member";
-}
-
-export default function GaragePage({ onBack, team }: { onBack: () => void; team: { id: string; teamName: string } }) {
+export default function GaragePage({ onBack, team }: { onBack: () => void; team: { id: string; teamName: string; memberId: string; memberName: string; isLeader: boolean; memberCount: number; selectedTrack?: { id: string; title: string; color: string } | null; members?: { id: string; name: string; isLeader: boolean }[] } }) {
   const sessionTime = useSessionTime();
   const { days, min, sec } = useDeadline();
   const [repoUrl, setRepoUrl] = useState("");
   const [driveUrl, setDriveUrl] = useState("");
+  const [selectedChallenges, setSelectedChallenges] = useState<{ id: string; title: string; color: string }[]>(team.selectedTrack ? [team.selectedTrack] : []);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [roster, setRoster] = useState<RosterMember[]>([]);
 
   useEffect(() => {
     api
-      .get<{ github_url: string; drive_url: string | null }>("/api/submissions/me")
+      .get<{ github_url: string; drive_url: string | null }> ("/api/submissions/me")
       .then((sub) => {
         setRepoUrl(sub.github_url);
         setDriveUrl(sub.drive_url ?? "");
         setSubmitted(true);
       })
       .catch(() => {}); // no submission yet — that's fine, form stays blank
-    api.get<{ members: RosterMember[] }>("/api/auth/team/members").then((response) => setRoster(response.members)).catch(() => {});
-  }, [team.id]);
+
+    api.get<{ team: typeof team }>("/api/auth/me")
+      .then((res) => setTeamMembers(res.team.members ?? []))
+      .catch(() => {});
+
+    api
+      .get<{ challenges: { id: string; title: string; color: string }[] }>("/api/challenges/me")
+      .then((res) => setSelectedChallenges(res.challenges))
+      .catch(() => setSelectedChallenges([]));
+  }, []);
+
+  const [teamMembers, setTeamMembers] = useState<{ id: string; name: string; isLeader: boolean }[]>(team.members ?? []);
 
   async function handleSubmit() {
     if (submitting) return;
@@ -314,21 +318,21 @@ export default function GaragePage({ onBack, team }: { onBack: () => void; team:
               <div className="px-4 py-3" style={{ borderBottom: "1px solid rgba(0,210,210,0.2)" }}>
                 <h3 className="font-bold uppercase tracking-widest text-white"
                   style={{ fontFamily: "'Rajdhani',sans-serif", fontSize: "0.9rem" }}>
-                  TEAM ROSTER
+                  TEAM ROSTER ({teamMembers.length}/{team.memberCount})
                 </h3>
               </div>
               {/* Members */}
               <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                {(roster.length ? roster : [{ id: "team-account", displayName: team.teamName, role: "member" as const }]).map((m) => (
+                {teamMembers.map((m) => (
                   <div key={m.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <Avatar name={m.displayName} />
+                    <Avatar name={m.name} />
                     <div className="flex-1 min-w-0">
                       <div className="text-white text-sm font-semibold truncate"
                         style={{ fontFamily: "'Rajdhani',sans-serif" }}>
-                        {m.displayName}
+                        {m.name}
                       </div>
                       <div className="text-gray-500 text-xs" style={{ fontFamily: "'Titillium Web',sans-serif" }}>
-                        {m.role === "leader" ? "Team Leader" : "Team Member"}
+                        {m.isLeader ? "Team Leader" : "Team Member"}
                       </div>
                     </div>
                     <span
@@ -336,13 +340,13 @@ export default function GaragePage({ onBack, team }: { onBack: () => void; team:
                       style={{
                         fontFamily: "'Titillium Web',sans-serif",
                         fontSize: "0.65rem",
-                        color: m.role === "leader" ? "#00D2D2" : "#22c55e",
-                        border: `1px solid ${m.role === "leader" ? "#00D2D2" : "#22c55e"}`,
-                        background: m.role === "leader" ? "#00D2D215" : "#22c55e15",
+                        color: m.isLeader ? "#E10600" : "#22c55e",
+                        border: `1px solid ${m.isLeader ? "#E10600" : "#22c55e"}`,
+                        background: `${m.isLeader ? "#E10600" : "#22c55e"}15`,
                         whiteSpace: "nowrap",
                       }}
                     >
-                      Active
+                        {m.isLeader ? "LEADER" : "ACTIVE"}
                     </span>
                   </div>
                 ))}
@@ -374,8 +378,9 @@ export default function GaragePage({ onBack, team }: { onBack: () => void; team:
                 YOUR CONSTRUCTOR GARAGE
               </h2>
               <p className="text-gray-400 text-sm" style={{ fontFamily: "'Rajdhani',sans-serif", letterSpacing: "0.1em" }}>
-                TEAM: {team.teamName}
+                TEAM: {team.teamName} · YOU: {team.memberName}
               </p>
+              {team.isLeader && team.pitPassCode && <div className="mt-2 flex items-center justify-center gap-2 text-xs uppercase tracking-widest" style={{ color: "#00D2D2" }}><span>Pit Pass: {team.pitPassCode}</span><button type="button" onClick={() => void navigator.clipboard?.writeText(team.pitPassCode ?? "")} className="border border-[#00D2D2] px-2 py-1 text-[10px] text-[#00D2D2]">Copy invite</button></div>}
             </div>
 
             {/* Car blueprint panel */}
@@ -518,23 +523,20 @@ export default function GaragePage({ onBack, team }: { onBack: () => void; team:
                   <span className="text-white text-xs font-bold uppercase tracking-widest"
                     style={{ fontFamily: "'Rajdhani',sans-serif" }}>Selected Track</span>
                 </div>
-                <div className="flex items-start gap-2 pl-4">
-                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" className="shrink-0 mt-0.5">
-                    <path d="M3 13 A7 7 0 0 1 15 13" stroke="#E10600" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                    <line x1="9" y1="13" x2="13" y2="7" stroke="#E10600" strokeWidth="1.5" strokeLinecap="round" />
-                    <circle cx="9" cy="13" r="1.5" fill="#E10600" />
-                  </svg>
-                  <p className="font-bold uppercase text-white leading-tight"
-                    style={{ fontFamily: "'Rajdhani',sans-serif", fontSize: "0.85rem", letterSpacing: "0.03em" }}>
-                    AI-POWERED<br />TELEMETRY<br />ANALYTICS
-                  </p>
-                </div>
-              </div>
-
-              <div className="h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
-
-              {/* 2. Submission status */}
-              <div>
+                {selectedChallenges.length === 0 ? (
+                  <p className="pl-4 text-xs text-gray-500" style={{ fontFamily: "'Titillium Web',sans-serif" }}>No challenge selected yet.</p>
+                ) : (
+                  <div className="flex flex-col gap-2 pl-4">
+                    {selectedChallenges.map((challenge) => (
+                      <div key={challenge.id} className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: challenge.color, boxShadow: `0 0 10px ${challenge.color}` }} />
+                        <p className="font-bold uppercase text-white leading-tight" style={{ fontFamily: "'Rajdhani',sans-serif", fontSize: "0.85rem", letterSpacing: "0.03em" }}>
+                          {challenge.title}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-xs font-bold" style={{ fontFamily: "'Rajdhani',sans-serif", color: "#E10600" }}>2.</span>
                   <span className="text-white text-xs font-bold uppercase tracking-widest"

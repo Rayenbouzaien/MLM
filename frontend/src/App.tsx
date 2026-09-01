@@ -3,8 +3,7 @@ import CircuitPage from "./pages/CircuitPage";
 import PaddockPage from "./pages/PaddockPage";
 import GaragePage from "./pages/GaragePage";
 import ChallengesPage from "./pages/ChallengesPage";
-import LoginPage, { type Member, type Team } from "./pages/LoginPage";
-import MemberPage from "./pages/MemberPage";
+import LoginPage from "./pages/LoginPage";
 import AdminPage from "./pages/AdminPage";
 import RulesPrizesPage from "./pages/RulesPrizesPage";
 import { API_BASE, api } from "./lib/api";
@@ -79,7 +78,7 @@ const TRACKS = [
   { icon: <LeafCarIcon />, title: "SUSTAINABLE RACE LOGISTICS" },
 ];
 
-type Page = "home" | "circuit" | "paddock" | "garage" | "challenges" | "login" | "member" | "admin" | "rules";
+type Page = "home" | "circuit" | "paddock" | "garage" | "challenges" | "login" | "admin" | "rules";
 
 const NAV_ITEMS: { label: string; sub: string; page: Page | null }[] = [
   { label: "Lights Out", sub: "Home", page: "home" },
@@ -93,8 +92,8 @@ export default function App() {
   const { days, hrs, min, sec } = useCountdown(TARGET);
   const [menuOpen, setMenuOpen] = useState(false);
   const [page, setPage] = useState<Page>(() => window.location.pathname === "/admin" ? "admin" : "home");
-  const [team, setTeam] = useState<Team | null>(null);
-  const [member, setMember] = useState<Member | null>(null);
+  const [team, setTeam] = useState<{ id: string; teamName: string; memberId: string; memberName: string; isLeader: boolean; memberCount: number; pitPassCode?: string; selectedTrack?: { id: string; title: string; color: string } | null; members?: { id: string; name: string; isLeader: boolean }[] } | null>(null);
+  const [account, setAccount] = useState<{ id: string; name: string; teams?: { id: string; teamName: string; memberId: string; memberName: string; isLeader: boolean; memberCount: number; pitPassCode?: string }[] } | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [accessNotice, setAccessNotice] = useState<string | null>(null);
 
@@ -107,23 +106,29 @@ export default function App() {
   useEffect(() => {
     const pathname = page === "admin" ? "/admin" : "/";
     if (window.location.pathname !== pathname) window.history.pushState({}, "", pathname);
+    if (page === "admin") setTeam(null);
   }, [page]);
 
   useEffect(() => {
-    let active = true;
     Promise.all([
-      api.get<{ team: Team }>("/api/auth/me").catch(() => null),
-      api.get<{ member: Member }>("/api/auth/member/me").catch(() => null),
-    ]).then(([teamResponse, memberResponse]) => {
-      if (!active) return;
-      setTeam(teamResponse?.team ?? null);
-      setMember(memberResponse?.member ?? null);
-    }).finally(() => { if (active) setAuthChecked(true); });
-    return () => { active = false; };
+      api.get<{ admin: boolean }> ("/api/admin/me").then(() => true).catch(() => false),
+      api.get<{ team: typeof team }>("/api/auth/me").then((res) => res.team).catch(() => null),
+      api.get<{ account: { id: string; name: string }; teams: NonNullable<typeof account>["teams"] }>("/api/auth/account/me").then((res) => ({ ...res.account, teams: res.teams })).catch(() => null),
+    ])
+      .then(([isAdmin, currentTeam, currentAccount]) => {
+        if (isAdmin) {
+          setTeam(null);
+          return;
+        }
+        setTeam(currentTeam);
+        setAccount(currentAccount);
+      })
+      .catch(() => setTeam(null))
+      .finally(() => setAuthChecked(true));
   }, []);
 
   useEffect(() => {
-    if (!team || page === "admin") return;
+    if (!team) return;
     const source = new EventSource(`${API_BASE}/api/live`);
     source.onmessage = (message) => {
       try {
@@ -140,25 +145,19 @@ export default function App() {
       }
     };
     return () => source.close();
-  }, [team, page]);
+  }, [team]);
 
   async function handleLogout() {
     await api.post("/api/auth/logout").catch(() => {});
     setTeam(null);
-    setPage(member ? "member" : "home");
-  }
-
-  async function handleMemberLogout() {
-    await api.post("/api/auth/member/logout").catch(() => {});
-    setTeam(null);
-    setMember(null);
     setPage("home");
   }
 
-  function handleAuth(result: { team: Team | null; member?: Member }) {
-    setTeam(result.team);
-    if (result.member) setMember(result.member);
-    setPage(result.team ? "garage" : "member");
+  async function handleAccountLogout() {
+    await api.post("/api/auth/account/logout").catch(() => {});
+    setTeam(null);
+    setAccount(null);
+    setPage("home");
   }
 
   return (
@@ -224,29 +223,24 @@ export default function App() {
         </button>
 
         {/* Desktop team session control */}
-        {page !== "admin" && <div className="hidden md:block">
+        <div className="hidden md:block">
           {team ? (
             <div className="flex items-center gap-3">
               <span className="text-xs text-gray-400" style={{ fontFamily: "'Titillium Web',sans-serif" }}>{team.teamName}</span>
-              {member && <button onClick={() => setPage("member")} className="text-xs" style={{ color: "#00D2D2", background: "none", border: "none", cursor: "pointer" }}>Member hub</button>}
               <button onClick={handleLogout} className="text-xs" style={{ color: "#00D2D2", background: "none", border: "none", cursor: "pointer" }}>
-                Log out
+                Team log out
               </button>
-            </div>
-          ) : member ? (
-            <div className="flex items-center gap-3">
-              <button onClick={() => setPage("member")} className="text-xs text-gray-300" style={{ background: "none", border: "none", cursor: "pointer" }}>{member.displayName}</button>
-              <button onClick={handleMemberLogout} className="text-xs" style={{ color: "#00D2D2", background: "none", border: "none", cursor: "pointer" }}>Log out</button>
+              {account && <button onClick={handleAccountLogout} className="text-xs" style={{ color: "#FF2D55", background: "none", border: "none", cursor: "pointer" }}>Account log out</button>}
             </div>
           ) : (
             authChecked && (
               <button onClick={() => setPage("login")} className="px-4 py-2 rounded text-xs font-bold uppercase tracking-widest"
                 style={{ background: "transparent", border: "1px solid #00D2D2", color: "#00D2D2", cursor: "pointer" }}>
-                Team Login
+                {account ? "Join a Team" : "Participant Login"}
               </button>
             )
           )}
-        </div>}
+        </div>
       </nav>
 
       {/* Mobile menu */}
@@ -264,24 +258,19 @@ export default function App() {
               <span className="text-xs text-gray-500 ml-2">{item.sub}</span>
             </div>
           ))}
-          {page !== "admin" && <div className="py-2 flex items-center justify-between">
+          <div className="py-2 flex items-center justify-between">
             {team ? (
               <>
                 <span className="text-xs text-gray-400">{team.teamName}</span>
-                {member && <button onClick={() => { setPage("member"); setMenuOpen(false); }} className="text-xs" style={{ color: "#00D2D2", background: "none", border: "none" }}>Member hub</button>}
-                <button onClick={() => { handleLogout(); setMenuOpen(false); }} className="text-xs" style={{ color: "#00D2D2", background: "none", border: "none" }}>Log out</button>
-              </>
-            ) : member ? (
-              <>
-                <button onClick={() => { setPage("member"); setMenuOpen(false); }} className="text-xs text-gray-300" style={{ background: "none", border: "none" }}>{member.displayName}</button>
-                <button onClick={() => { handleMemberLogout(); setMenuOpen(false); }} className="text-xs" style={{ color: "#00D2D2", background: "none", border: "none" }}>Log out</button>
+                <button onClick={() => { handleLogout(); setMenuOpen(false); }} className="text-xs" style={{ color: "#00D2D2", background: "none", border: "none" }}>Team log out</button>
+                {account && <button onClick={() => { handleAccountLogout(); setMenuOpen(false); }} className="text-xs" style={{ color: "#FF2D55", background: "none", border: "none" }}>Account log out</button>}
               </>
             ) : (
               <button onClick={() => { setPage("login"); setMenuOpen(false); }} className="text-xs font-semibold" style={{ color: "#00D2D2", background: "none", border: "none" }}>
-                Team Login
+                {account ? "Join a Team" : "Participant Login"}
               </button>
             )}
-          </div>}
+          </div>
         </div>
       )}
 
@@ -436,14 +425,13 @@ export default function App() {
 
       {page === "circuit" && <CircuitPage />}
       {page === "paddock" && (
-        <PaddockPage onOpenGarage={() => setPage(team ? "garage" : member ? "member" : "login")} />
+        <PaddockPage onOpenGarage={() => setPage(team ? "garage" : "login")} />
       )}
-      {page === "garage" && (team ? <GaragePage onBack={() => setPage("paddock")} team={team} /> : <LoginPage onAuthed={handleAuth} />)}
+      {page === "garage" && (team ? <GaragePage onBack={() => setPage("paddock")} team={team} /> : <LoginPage onAuthed={(t) => { setTeam(t); setPage("garage"); }} />)}
       {page === "challenges" && <ChallengesPage team={team} onLogin={() => setPage("login")} />}
       {page === "rules" && <RulesPrizesPage />}
-      {page === "login" && <LoginPage onAuthed={handleAuth} />}
-      {page === "member" && <MemberPage onTeamJoined={(joinedTeam) => { setTeam(joinedTeam); setPage("garage"); }} />}
-      {page === "admin" && <AdminPage />}
+      {page === "login" && <LoginPage account={account} onAccount={setAccount} onAccountLogout={() => void handleAccountLogout()} onFreeAgent={() => setPage("paddock")} onAuthed={(t) => { setTeam(t); setPage("garage"); }} />}
+      {page === "admin" && <AdminPage onSessionChange={(active) => { if (active) setTeam(null); }} />}
 
       {/* Bottom teaser — home only */}
       {page === "home" && (

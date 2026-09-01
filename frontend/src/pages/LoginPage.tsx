@@ -1,60 +1,69 @@
 import { useState } from "react";
 import { api, ApiError } from "../lib/api";
 
-export interface Team {
-  id: string;
-  teamName: string;
-  description?: string;
-  logoUrl?: string | null;
-}
+interface Account { id: string; name: string; email?: string; handle?: string; techStack?: string[]; licenceLevel?: string; roleType?: string; teams?: Team[] }
+interface Team { id: string; teamName: string; memberId: string; memberName: string; isLeader: boolean; memberCount: number; pitPassCode?: string }
+type TeamAction = "leader" | "member" | "free-agent";
 
-export interface Member {
-  id: string;
-  displayName: string;
-  email: string;
-  role: "leader" | "member";
-}
-
-type Screen = "login" | "leader" | "member";
-type LoginKind = "team" | "member";
-
-export default function LoginPage({ onAuthed }: { onAuthed: (result: { team: Team | null; member?: Member }) => void }) {
-  const [screen, setScreen] = useState<Screen>("login");
-  const [loginKind, setLoginKind] = useState<LoginKind>("team");
-  const [teamName, setTeamName] = useState("");
-  const [displayName, setDisplayName] = useState("");
+export default function LoginPage({
+  onAuthed,
+  account: existingAccount,
+  onAccount,
+  onAccountLogout,
+  onFreeAgent,
+}: { onAuthed: (team: Team) => void; account?: Account | null; onAccount?: (account: Account) => void; onAccountLogout?: () => void; onFreeAgent?: () => void }) {
+  const [mode, setMode] = useState<"login" | "register">(existingAccount ? "register" : "login");
+  const [account, setAccount] = useState<Account | null>(existingAccount ?? null);
+  const [action, setAction] = useState<TeamAction>(existingAccount?.teams?.length ? "member" : "leader");
+  const [name, setName] = useState(existingAccount?.name ?? "");
   const [email, setEmail] = useState("");
-  const [description, setDescription] = useState("");
-  const [logoUrl, setLogoUrl] = useState("");
+  const [handle, setHandle] = useState("");
   const [password, setPassword] = useState("");
+  const [techStack, setTechStack] = useState("");
+  const [licenceLevel, setLicenceLevel] = useState("first-time-hackathoner");
+  const [teamName, setTeamName] = useState("");
+  const [teamPassword, setTeamPassword] = useState("");
+  const [pitPassCode, setPitPassCode] = useState("");
+  const [memberCount, setMemberCount] = useState(2);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  function changeScreen(next: Screen) {
-    setScreen(next);
-    setError(null);
-  }
-
-  async function handleSubmit(event: React.FormEvent) {
+  async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      if (screen === "leader") {
-        const response = await api.post<{ team: Team; member: Member }>("/api/auth/leader/register", {
-          teamName, displayName, email, password, description, logoUrl: logoUrl || undefined,
-        });
-        onAuthed({ team: response.team, member: response.member });
-      } else if (screen === "member") {
-        const response = await api.post<{ member: Member }>("/api/auth/member/register", { displayName, email, password });
-        onAuthed({ team: null, member: response.member });
-      } else if (loginKind === "team") {
-        const response = await api.post<{ team: Team }>("/api/auth/login", { teamName, password });
-        onAuthed({ team: response.team });
-      } else {
-        const response = await api.post<{ team: Team | null; member: Member }>("/api/auth/member/login", { email, password });
-        onAuthed(response);
+      if (!account) {
+        const result = await api.post<{ account: Account; teams: Team[] }>(
+          mode === "register" ? "/api/auth/account/register" : "/api/auth/account/login",
+          { name, password, ...(mode === "register" ? { email, handle, techStack: techStack.split(",").map((item) => item.trim()).filter(Boolean), licenceLevel } : {}) },
+        );
+        const nextAccount = { ...result.account, teams: result.teams };
+        setAccount(nextAccount);
+        onAccount?.(nextAccount);
+        if (mode === "login" && result.teams.length > 0) {
+          onAuthed(result.teams[0]);
+        }
+        return;
       }
+
+      if (action === "free-agent") {
+        const result = await api.post<{ account: Account }>("/api/auth/account/free-agent");
+        onAccount?.({ ...account, ...result.account, teams: account.teams });
+        onFreeAgent?.();
+        return;
+      }
+
+      if (action === "member") {
+        const result = await api.post<{ team: Team }>("/api/auth/team/join", { pitPassCode, teamPassword });
+        onAccount?.({ ...account, teams: [...(account.teams ?? []), result.team], roleType: "MEMBER" });
+        onAuthed(result.team);
+        return;
+      }
+
+      const result = await api.post<{ team: Team }>("/api/auth/team/create", { teamName, teamPassword, memberCount });
+      onAccount?.({ ...account, teams: [...(account.teams ?? []), result.team], roleType: "LEADER" });
+      onAuthed(result.team);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
     } finally {
@@ -62,57 +71,75 @@ export default function LoginPage({ onAuthed }: { onAuthed: (result: { team: Tea
     }
   }
 
-  const isLogin = screen === "login";
-  const isLeader = screen === "leader";
-  const title = isLogin ? (loginKind === "team" ? "TEAM LOGIN" : "MEMBER LOGIN") : isLeader ? "CREATE A TEAM" : "CREATE MEMBER ACCOUNT";
-  const subtitle = isLeader
-    ? "Start a team, shape its profile, then invite registered members."
-    : screen === "member"
-      ? "Create your account first. Join a team when its leader sends an invitation."
-      : "Access your team or personal member account.";
+  function switchMode() {
+    setMode(mode === "login" ? "register" : "login");
+    setAccount(null);
+    setError(null);
+  }
+
+  const canCreateTeam = !account?.teams?.length;
+  const title = !account ? (mode === "login" ? "PIT LANE ACCESS" : "DRIVER REGISTRATION") : "PADDOCK SETUP";
+  const subtitle = !account ? (mode === "login" ? "Sign in with your driver handle, email, or name" : "Create your driver account first") : `Signed in as ${account.name}`;
 
   return (
-    <main className="flex-1 flex items-center justify-center p-5 sm:p-8" style={{ background: "linear-gradient(160deg,#080810 0%,#10101a 100%)" }}>
-      <section className="w-full rounded-lg p-6 sm:p-8" style={{ maxWidth: 520, border: "1.5px solid rgba(0,210,210,0.4)", background: "rgba(0,210,210,0.03)", boxShadow: "0 0 30px rgba(0,210,210,0.1)" }}>
-        <p className="text-center text-xs font-semibold uppercase tracking-[0.22em] text-[#00D2D2]">Gridlock accounts</p>
-        <h1 className="mt-2 font-headline font-black text-white uppercase text-center" style={{ fontSize: "1.6rem", letterSpacing: "0.05em" }}>{title}</h1>
-        <p className="mx-auto mt-2 max-w-md text-center text-xs leading-5 text-gray-400" style={{ fontFamily: "'Titillium Web',sans-serif" }}>{subtitle}</p>
+    <div className="flex-1 flex items-center justify-center p-6" style={{ background: "linear-gradient(160deg,#080810 0%,#10101a 100%)" }}>
+      <div className="w-full rounded-lg p-8" style={{ maxWidth: 480, border: "1.5px solid rgba(0,210,210,0.4)", background: "rgba(0,210,210,0.03)", boxShadow: "0 0 30px rgba(0,210,210,0.1)" }}>
+        <h1 className="font-headline font-black text-white uppercase text-center mb-1" style={{ fontSize: "1.6rem", letterSpacing: "0.05em" }}>{title}</h1>
+        <p className="text-center text-gray-500 text-xs mb-6" style={{ fontFamily: "'Titillium Web',sans-serif" }}>{subtitle}</p>
 
-        {isLogin && (
-          <div className="mt-6 grid grid-cols-2 gap-2 rounded p-1" style={{ background: "rgba(255,255,255,0.05)" }}>
-            {(["team", "member"] as const).map((kind) => (
-              <button key={kind} type="button" onClick={() => { setLoginKind(kind); setError(null); }} className="rounded px-3 py-2 text-xs font-bold uppercase tracking-wider" style={{ background: loginKind === kind ? "#00D2D2" : "transparent", color: loginKind === kind ? "#051111" : "#b7c0ca" }}>
-                {kind === "team" ? "Team account" : "Member account"}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
-          {!isLogin && <Field label="Your name"><input required minLength={2} value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Mina Driver" className="form-input" /></Field>}
-          {(isLeader || screen === "member" || (isLogin && loginKind === "member")) && <Field label="Email"><input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="mina@example.com" className="form-input" /></Field>}
-          {(isLeader || (isLogin && loginKind === "team")) && <Field label="Team name"><input required minLength={2} value={teamName} onChange={(e) => setTeamName(e.target.value)} placeholder="Telemetry Titans" className="form-input" /></Field>}
-          {isLeader && <Field label="Team logo URL (optional)"><input type="url" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://example.com/team-logo.png" className="form-input" /></Field>}
-          {isLeader && <Field label="Team description (optional)"><textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={1000} rows={3} placeholder="What is your team building?" className="form-input resize-y" /></Field>}
-          <Field label="Password"><input required type="password" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" className="form-input" /></Field>
-
-          {error && <p className="text-xs text-red-400" role="alert">{error}</p>}
-          <button type="submit" disabled={loading} className="w-full rounded py-3 font-black uppercase tracking-widest transition-transform hover:scale-[1.01] disabled:cursor-wait disabled:opacity-70" style={{ fontFamily: "'Rajdhani',sans-serif", background: "#E10600", color: "#fff", border: "none", boxShadow: "0 0 20px rgba(225,6,0,0.35)" }}>
-            {loading ? "Working…" : isLeader ? "Create team" : screen === "member" ? "Create member account" : "Log in"}
-          </button>
+        <form onSubmit={submit} className="flex flex-col gap-4">
+          {!account ? <>
+            <label className="text-gray-500 text-xs tracking-widest uppercase">Full Name
+              <input required minLength={2} value={name} onChange={(event) => setName(event.target.value)} placeholder="Alex R." className="mt-1 w-full px-3 py-2.5 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
+            </label>
+            {mode === "register" && <>
+              <label className="text-gray-500 text-xs tracking-widest uppercase">Email
+                <input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="driver@example.com" className="mt-1 w-full px-3 py-2.5 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
+              </label>
+              <label className="text-gray-500 text-xs tracking-widest uppercase">Driver Handle
+                <input required value={handle} onChange={(event) => setHandle(event.target.value)} placeholder="@TelemetryPro" className="mt-1 w-full px-3 py-2.5 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
+              </label>
+              <label className="text-gray-500 text-xs tracking-widest uppercase">Technical Specialties
+                <input value={techStack} onChange={(event) => setTechStack(event.target.value)} placeholder="ML Engineer, Frontend" className="mt-1 w-full px-3 py-2.5 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
+              </label>
+              <label className="text-gray-500 text-xs tracking-widest uppercase">Driver Super Licence
+                <select value={licenceLevel} onChange={(event) => setLicenceLevel(event.target.value)} className="mt-1 w-full px-3 py-2.5 rounded text-sm text-white outline-none" style={{ background: "#111118", border: "1px solid rgba(255,255,255,0.15)" }}><option value="student">Student</option><option value="professional">Professional</option><option value="first-time-hackathoner">First-Time Hackathoner</option></select>
+              </label>
+            </>}
+            <label className="text-gray-500 text-xs tracking-widest uppercase">Password
+              <input type="password" required minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" className="mt-1 w-full px-3 py-2.5 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
+            </label>
+          </> : <>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {(["leader", "member", "free-agent"] as const).filter((option) => option !== "leader" || canCreateTeam).map((option) => <button key={option} type="button" onClick={() => setAction(option)} className="rounded py-3 text-[10px] font-bold uppercase tracking-[0.12em]" style={{ background: action === option ? "#00D2D2" : "transparent", color: action === option ? "#05070a" : "#cbd5e1", border: "1px solid rgba(255,255,255,0.15)" }}>{option === "leader" ? "Found Team" : option === "member" ? "Join Garage" : "Free Agent"}</button>)}
+            </div>
+            {action === "leader" && <>
+              <label className="text-gray-500 text-xs tracking-widest uppercase">Team Name
+                <input required value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder="Telemetry Titans" className="mt-1 w-full px-3 py-2.5 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
+              </label>
+              <label className="text-gray-500 text-xs tracking-widest uppercase">Team Password
+                <input type="password" required minLength={8} value={teamPassword} onChange={(event) => setTeamPassword(event.target.value)} placeholder="Create team password" className="mt-1 w-full px-3 py-2.5 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
+              </label>
+              <label className="text-gray-500 text-xs tracking-widest uppercase">Total Members Including You
+                <input type="number" min={1} max={50} required value={memberCount} onChange={(event) => setMemberCount(Math.min(50, Math.max(1, Number(event.target.value) || 1)))} className="mt-1 w-full px-3 py-2.5 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
+              </label>
+            </>}
+            {action === "member" && <>
+              <label className="text-gray-500 text-xs tracking-widest uppercase">Pit Pass Code
+                <input required value={pitPassCode} onChange={(event) => setPitPassCode(event.target.value.toUpperCase())} placeholder="TITAN-8921" className="mt-1 w-full px-3 py-2.5 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
+              </label>
+              <label className="text-gray-500 text-xs tracking-widest uppercase">Team Password
+                <input type="password" required minLength={8} value={teamPassword} onChange={(event) => setTeamPassword(event.target.value)} placeholder="Team password" className="mt-1 w-full px-3 py-2.5 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
+              </label>
+            </>}
+            {action === "free-agent" && <p className="border border-[#00D2D2]/30 bg-[#00D2D2]/5 p-4 text-sm text-gray-300">You will remain an individual free agent until you join a team with a Pit Pass Code.</p>}
+          </>}
+          {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
+          <button type="submit" disabled={loading} className="w-full py-3 rounded font-black uppercase tracking-widest" style={{ background: "#E10600", color: "#fff", border: "none", cursor: loading ? "wait" : "pointer", opacity: loading ? 0.7 : 1 }}>{loading ? "..." : !account ? (mode === "register" ? "CREATE ACCOUNT" : "LOG IN") : action === "leader" ? "CREATE TEAM" : action === "member" ? "JOIN TEAM" : "ENTER FREE AGENT POOL"}</button>
         </form>
-
-        <div className="mt-6 border-t border-white/10 pt-5 text-center text-xs" style={{ fontFamily: "'Titillium Web',sans-serif" }}>
-          {isLogin ? <>
-            <p className="text-gray-400">New here? Choose how you want to enter the grid.</p>
-            <div className="mt-3 flex justify-center gap-4"><button type="button" onClick={() => changeScreen("leader")} className="text-[#00D2D2]">Create a team</button><button type="button" onClick={() => changeScreen("member")} className="text-[#00D2D2]">Create a member account</button></div>
-          </> : <button type="button" onClick={() => changeScreen("login")} className="text-[#00D2D2]">Already have an account? Log in</button>}
-        </div>
-      </section>
-    </main>
+        {!existingAccount && !account && <button onClick={switchMode} className="w-full text-center mt-5 text-xs" style={{ color: "#00D2D2", background: "none", border: "none", cursor: "pointer" }}>{mode === "login" ? "New here? Create an account" : "Already have an account? Log in"}</button>}
+        {account && <button type="button" onClick={onAccountLogout} className="w-full text-center mt-5 text-xs" style={{ color: "#FF2D55", background: "none", border: "none", cursor: "pointer" }}>Log out of account</button>}
+      </div>
+    </div>
   );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="flex flex-col gap-1.5 text-xs uppercase tracking-widest text-gray-500" style={{ fontFamily: "'Titillium Web',sans-serif" }}>{label}{children}</label>;
 }

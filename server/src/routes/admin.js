@@ -2,7 +2,7 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { pool } from "../db.js";
-import { setSessionCookie, clearSessionCookie, hashPassword, requireAdmin, timingSafeStringEqual } from "../auth.js";
+import { setAdminSessionCookie, clearAdminSessionCookie, clearTeamSessionCookie, hashPassword, requireAdmin, timingSafeStringEqual } from "../auth.js";
 import { emit } from "../live.js";
 
 const router = Router();
@@ -28,12 +28,13 @@ router.post("/login", adminLoginLimiter, (req, res) => {
   if (!parsed.success || !timingSafeStringEqual(parsed.data.password, process.env.ADMIN_PASSWORD)) {
     return res.status(401).json({ error: "Incorrect password." });
   }
-  setSessionCookie(res, { role: "admin" });
+  clearTeamSessionCookie(res);
+  setAdminSessionCookie(res, { role: "admin" });
   res.json({ success: true });
 });
 
 router.post("/logout", (req, res) => {
-  clearSessionCookie(res, "admin");
+  clearAdminSessionCookie(res);
   res.json({ success: true });
 });
 

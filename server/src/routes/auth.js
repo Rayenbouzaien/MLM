@@ -1,15 +1,18 @@
 import { Router } from "express";
+import crypto from "node:crypto";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { pool, withRetry } from "../db.js";
 import {
   hashPassword,
   verifyPassword,
-  setSessionCookie,
-  clearSessionCookie,
+  setTeamSessionCookie,
+  setAccountSessionCookie,
+  clearTeamSessionCookie,
+  clearAccountSessionCookie,
+  clearAdminSessionCookie,
   requireTeam,
-  requireMember,
-  requireLeader,
+  requireAccount,
 } from "../auth.js";
 import { emit } from "../live.js";
 
@@ -27,74 +30,305 @@ const authLimiter = rateLimit({
   message: { error: "Too many attempts. Please wait a moment and try again." },
 });
 
-const credentialsSchema = z.object({
+const signupSchema = z.object({
+  role: z.enum(["leader", "member"]),
+  name: z.string().trim().min(2).max(100),
+  personalPassword: z.string().min(8).max(200),
   teamName: z.string().trim().min(2).max(100),
-  password: z.string().min(8).max(200),
+  teamPassword: z.string().min(8).max(200),
+  memberCount: z.coerce.number().int().min(1).max(50).optional(),
 });
 
-const memberCredentialsSchema = z.object({
-  displayName: z.string().trim().min(2).max(100),
-  email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()),
-  password: z.string().min(8).max(200),
-});
-
-const leaderRegistrationSchema = memberCredentialsSchema.extend({
+const loginSchema = z.object({
+  name: z.string().trim().min(2).max(100),
+  personalPassword: z.string().min(8).max(200),
   teamName: z.string().trim().min(2).max(100),
-  description: z.string().trim().max(1000).optional().default(""),
-  logoUrl: z.string().trim().url().max(2048).refine((value) => /^https?:\/\//i.test(value), {
-    message: "Logo URL must use http or https.",
-  }).optional().or(z.literal("")),
+  teamPassword: z.string().min(8).max(200),
 });
 
-const invitationSchema = z.object({
-  email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()),
+const accountSchema = z.object({
+  name: z.string().trim().min(2).max(100),
+  password: z.string().min(8).max(200),
+  email: z.string().trim().email().max(200).optional(),
+  handle: z.string().trim().regex(/^@?[a-zA-Z0-9_.-]{2,40}$/).optional(),
+  techStack: z.array(z.string().trim().min(1).max(60)).max(12).optional().default([]),
+  licenceLevel: z.enum(["student", "professional", "first-time-hackathoner"]).optional().default("first-time-hackathoner"),
 });
 
-function publicMember(member) {
+const teamSetupSchema = z.object({
+  teamName: z.string().trim().min(2).max(100),
+  teamPassword: z.string().min(8).max(200),
+  memberCount: z.coerce.number().int().min(1).max(50).optional(),
+  trackId: z.coerce.string().regex(/^\d+$/).optional(),
+});
+
+function teamResponse(team, member) {
   return {
-    id: member.id,
-    displayName: member.display_name,
-    email: member.email,
-    role: member.role,
-    teamId: member.team_id,
+    id: team.id, teamName: team.team_name, memberId: member.id,
+    memberName: member.member_name, isLeader: member.is_leader,
+    memberCount: team.member_count,
+    pitPassCode: team.pit_pass_code,
   };
 }
 
-function setMemberCookies(res, member, team = null) {
-  setSessionCookie(res, { role: "member", memberId: member.id });
-  if (team) {
-    setSessionCookie(res, {
-      role: "team",
-      teamId: team.id,
-      teamName: team.team_name,
-      memberId: member.id,
-    });
-  }
+function createPitPassCode(teamName) {
+  const prefix = teamName.replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, 5).padEnd(5, "X");
+  return `${prefix}-${crypto.randomInt(1000, 10000)}`;
 }
 
+router.post("/account/register", authLimiter, async (req, res) => {
+  const parsed = accountSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid account details." });
+  try {
+    const result = await pool.query(
+      `INSERT INTO accounts (account_name, password_hash, email, handle, tech_stack, licence_level, role_type)
+       VALUES ($1, $2, $3, $4, $5, $6, 'FREE_AGENT')
+       RETURNING id, account_name, email, handle, tech_stack, licence_level, role_type`,
+      [parsed.data.name, await hashPassword(parsed.data.password), parsed.data.email ?? null, parsed.data.handle ?? null, parsed.data.techStack, parsed.data.licenceLevel],
+    );
+    const account = result.rows[0];
+    clearTeamSessionCookie(res);
+    clearAdminSessionCookie(res);
+    setAccountSessionCookie(res, { role: "account", accountId: account.id });
+    return res.status(201).json({ account: { id: account.id, name: account.account_name, email: account.email, handle: account.handle, techStack: account.tech_stack, licenceLevel: account.licence_level, roleType: account.role_type }, teams: [] });
+  } catch (err) {
+    if (err.code === "23505") return res.status(409).json({ error: "That account name is already taken." });
+    return res.status(503).json({ error: "Server is busy right now. Please retry." });
+  }
+});
+
+router.post("/account/login", authLimiter, async (req, res) => {
+  const parsed = accountSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid account details." });
+  const result = await pool.query("SELECT id, account_name, email, handle, tech_stack, licence_level, role_type, password_hash FROM accounts WHERE account_name_key = lower($1) OR email_key = lower($1) OR handle_key = lower($1)", [parsed.data.name]);
+  const account = result.rows[0];
+  if (!account || !(await verifyPassword(parsed.data.password, account.password_hash))) return res.status(401).json({ error: "Incorrect account name or password." });
+  clearTeamSessionCookie(res);
+  clearAdminSessionCookie(res);
+  setAccountSessionCookie(res, { role: "account", accountId: account.id });
+  const teams = await pool.query(
+    `SELECT t.id, t.team_name AS "teamName", t.member_count AS "memberCount",
+            tm.id AS "memberId", tm.member_name AS "memberName", tm.is_leader AS "isLeader"
+     FROM team_members tm JOIN teams t ON t.id = tm.team_id WHERE tm.account_id = $1 ORDER BY tm.created_at`,
+    [account.id],
+  );
+  return res.json({ account: { id: account.id, name: account.account_name, email: account.email, handle: account.handle, techStack: account.tech_stack, licenceLevel: account.licence_level, roleType: account.role_type }, teams: teams.rows });
+});
+
+router.get("/account/me", requireAccount, async (req, res) => {
+  const teams = await pool.query(
+    `SELECT t.id, t.team_name AS "teamName", t.member_count AS "memberCount",
+            tm.id AS "memberId", tm.member_name AS "memberName", tm.is_leader AS "isLeader"
+     FROM team_members tm JOIN teams t ON t.id = tm.team_id WHERE tm.account_id = $1 ORDER BY tm.created_at`,
+    [req.account.id],
+  );
+  res.json({ account: req.account, teams: teams.rows });
+});
+
+router.post("/account/logout", (req, res) => {
+  clearAccountSessionCookie(res);
+  clearTeamSessionCookie(res);
+  res.json({ success: true });
+});
+
+router.post("/team/create", requireAccount, async (req, res) => {
+  const parsed = teamSetupSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid team details." });
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const existingLeader = await client.query(
+      "SELECT 1 FROM team_members WHERE account_id = $1 AND is_leader = true FOR UPDATE",
+      [req.account.id],
+    );
+    if (existingLeader.rowCount > 0) {
+      await client.query("ROLLBACK");
+      client.release();
+      return res.status(409).json({ error: "A team leader can create only one team." });
+    }
+    let teamResult;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        teamResult = await client.query(
+          `INSERT INTO teams (team_name, password_hash, team_role, member_count, pit_pass_code, track_id) VALUES ($1, $2, 'leader', $3, $4, $5) RETURNING id, team_name, member_count, pit_pass_code`,
+          [parsed.data.teamName, await hashPassword(parsed.data.teamPassword), parsed.data.memberCount ?? 1, createPitPassCode(parsed.data.teamName), parsed.data.trackId || null],
+        );
+        break;
+      } catch (err) {
+        if (err.code !== "23505" || attempt === 4) throw err;
+      }
+    }
+    const team = teamResult.rows[0];
+    const memberResult = await client.query(
+      `INSERT INTO team_members (team_id, account_id, member_name, password_hash, is_leader) VALUES ($1, $2, $3, $4, true) RETURNING id, member_name, is_leader`,
+      [team.id, req.account.id, req.account.name, "account-session"],
+    );
+    await client.query("COMMIT");
+    client.release();
+    clearAdminSessionCookie(res);
+    setTeamSessionCookie(res, { role: "team", teamId: team.id, memberId: memberResult.rows[0].id });
+    await pool.query("UPDATE accounts SET role_type = 'LEADER' WHERE id = $1", [req.account.id]);
+    return res.status(201).json({ team: teamResponse(team, memberResult.rows[0]) });
+  } catch (err) {
+    await client?.query("ROLLBACK").catch(() => {});
+    client?.release();
+    if (err.code === "23505") return res.status(409).json({ error: "That team name is already taken." });
+    console.error("Team creation failed:", err);
+    return res.status(503).json({ error: "Server is busy right now. Please retry." });
+  }
+});
+
+router.post("/team/join", requireAccount, async (req, res) => {
+  const parsed = z.object({
+    pitPassCode: z.string().trim().regex(/^[A-Z0-9]{3,8}-?[A-Z0-9]{3,6}$/i).optional(),
+    teamName: z.string().trim().min(2).max(100).optional(),
+    teamPassword: z.string().min(8).max(200),
+  }).refine((value) => value.pitPassCode || value.teamName, "A pit pass code or team name is required").safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid team details." });
+  const teamResult = await pool.query(
+    `SELECT id, team_name, password_hash, banned, member_count, pit_pass_code,
+            (SELECT count(*) FROM team_members WHERE team_id = teams.id) AS current_members
+     FROM teams WHERE ($1::text IS NOT NULL AND upper(pit_pass_code) = upper($1))
+        OR ($2::text IS NOT NULL AND team_name_key = lower($2))`,
+    [parsed.data.pitPassCode || null, parsed.data.teamName || null],
+  );
+  const team = teamResult.rows[0];
+  if (!team || !(await verifyPassword(parsed.data.teamPassword, team.password_hash))) return res.status(401).json({ error: "Incorrect team name or team password." });
+  if (team.banned) return res.status(403).json({ error: "This team has been suspended. Contact an organizer." });
+  const existingMembership = await pool.query(
+    "SELECT id, member_name, is_leader FROM team_members WHERE team_id = $1 AND account_id = $2",
+    [team.id, req.account.id],
+  );
+  if (existingMembership.rows[0]) {
+    clearAdminSessionCookie(res);
+    setTeamSessionCookie(res, { role: "team", teamId: team.id, memberId: existingMembership.rows[0].id });
+    return res.json({ team: teamResponse(team, existingMembership.rows[0]) });
+  }
+  if (Number(team.current_members) >= team.member_count) return res.status(409).json({ error: "This team has reached its member limit." });
+  try {
+    const memberResult = await pool.query("INSERT INTO team_members (team_id, account_id, member_name, password_hash) VALUES ($1, $2, $3, $4) RETURNING id, member_name, is_leader", [team.id, req.account.id, req.account.name, "account-session"]);
+    clearAdminSessionCookie(res);
+    setTeamSessionCookie(res, { role: "team", teamId: team.id, memberId: memberResult.rows[0].id });
+    await pool.query("UPDATE accounts SET role_type = 'MEMBER' WHERE id = $1", [req.account.id]);
+    return res.status(201).json({ team: teamResponse(team, memberResult.rows[0]) });
+  } catch (err) {
+    if (err.code === "23505") return res.status(409).json({ error: "You are already on this team or that name is already used." });
+    return res.status(503).json({ error: "Server is busy right now. Please retry." });
+  }
+});
+
+router.post("/account/free-agent", requireAccount, async (req, res) => {
+  const membership = await pool.query("SELECT 1 FROM team_members WHERE account_id = $1 LIMIT 1", [req.account.id]);
+  if (membership.rowCount > 0) {
+    return res.status(409).json({ error: "Team members cannot become free agents while they belong to a team." });
+  }
+  await pool.query("UPDATE accounts SET role_type = 'FREE_AGENT' WHERE id = $1", [req.account.id]);
+  res.json({ account: { ...req.account, roleType: "FREE_AGENT" } });
+});
+
 router.post("/register", authLimiter, async (req, res) => {
-  const parsed = credentialsSchema.safeParse(req.body);
+  if (req.body?.password && !req.body?.personalPassword) {
+    const legacy = z.object({ teamName: z.string().trim().min(2).max(100), password: z.string().min(8).max(200) }).safeParse(req.body);
+    if (!legacy.success) return res.status(400).json({ error: "Invalid input" });
+    try {
+      if (req.body.role === "member") {
+        const existing = await pool.query("SELECT id, team_name, password_hash, banned FROM teams WHERE team_name_key = lower($1)", [legacy.data.teamName]);
+        const team = existing.rows[0];
+        if (!team || !(await verifyPassword(legacy.data.password, team.password_hash))) return res.status(401).json({ error: "Incorrect team name or password." });
+        if (team.banned) return res.status(403).json({ error: "This team has been suspended. Contact an organizer." });
+        setTeamSessionCookie(res, { role: "team", teamId: team.id });
+        clearAdminSessionCookie(res);
+        return res.status(201).json({ team: { id: team.id, teamName: team.team_name } });
+      }
+      const passwordHash = await hashPassword(legacy.data.password);
+      const legacyMemberCount = Number.isInteger(Number(req.body.memberCount)) ? Math.min(50, Math.max(1, Number(req.body.memberCount))) : 1;
+      const result = await pool.query(
+        `INSERT INTO teams (team_name, password_hash, member_count) VALUES ($1, $2, $3) RETURNING id, team_name`,
+        [legacy.data.teamName, passwordHash, legacyMemberCount],
+      );
+      const team = result.rows[0];
+      setTeamSessionCookie(res, { role: "team", teamId: team.id });
+      clearAdminSessionCookie(res);
+      return res.status(201).json({ team: { id: team.id, teamName: team.team_name } });
+    } catch (err) {
+      if (err.code === "23505") return res.status(409).json({ error: "That team name is already taken." });
+      return res.status(503).json({ error: "Server is busy right now. Please retry." });
+    }
+  }
+  const parsed = signupSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten().fieldErrors });
   }
-  const { teamName, password } = parsed.data;
+  const { role, name, personalPassword, teamName, teamPassword, memberCount } = parsed.data;
 
+  if (role === "member") {
+    if (memberCount !== undefined) {
+      return res.status(400).json({ error: "Member count is only required for team leaders." });
+    }
+    try {
+      const result = await pool.query(
+        `SELECT id, team_name, password_hash, banned, member_count,
+                (SELECT count(*) FROM team_members tm WHERE tm.team_id = teams.id) AS current_members
+         FROM teams WHERE team_name_key = lower($1)`,
+        [teamName],
+      );
+      const team = result.rows[0];
+      if (!team || !(await verifyPassword(teamPassword, team.password_hash))) {
+        return res.status(401).json({ error: "Incorrect team or team password." });
+      }
+      if (team.banned) {
+        return res.status(403).json({ error: "This team has been suspended. Contact an organizer." });
+      }
+      if (Number(team.current_members) >= team.member_count) {
+        return res.status(409).json({ error: "This team has reached its member limit." });
+      }
+      const member = await pool.query(
+        `INSERT INTO team_members (team_id, member_name, password_hash)
+         VALUES ($1, $2, $3) RETURNING id, member_name, is_leader`,
+        [team.id, name, await hashPassword(personalPassword)],
+      );
+      clearAdminSessionCookie(res);
+      setTeamSessionCookie(res, { role: "team", teamId: team.id, memberId: member.rows[0].id });
+      return res.status(201).json({ team: { id: team.id, teamName: team.team_name, memberId: member.rows[0].id, memberName: member.rows[0].member_name, isLeader: false, memberCount: team.member_count } });
+    } catch (err) {
+      if (err.code === "23505") {
+        return res.status(409).json({ error: "That member name is already used on this team." });
+      }
+      console.error("Member register failed:", err);
+      return res.status(503).json({ error: "Server is busy right now. Please retry." });
+    }
+  }
+
+  let client;
   try {
-    const passwordHash = await hashPassword(password);
+    client = await pool.connect();
+    const teamPasswordHash = await hashPassword(teamPassword);
+    const personalPasswordHash = await hashPassword(personalPassword);
+    await client.query("BEGIN");
     const result = await withRetry(() =>
-      pool.query(
-        `INSERT INTO teams (team_name, password_hash) VALUES ($1, $2)
+      client.query(
+        `INSERT INTO teams (team_name, password_hash, team_role, member_count)
+         VALUES ($1, $2, $3, $4)
          RETURNING id, team_name`,
-        [teamName, passwordHash],
+        [teamName, teamPasswordHash, "leader", memberCount ?? 1],
       ),
     );
     const team = result.rows[0];
-    setSessionCookie(res, { role: "team", teamId: team.id, teamName: team.team_name });
+    const member = await client.query(
+      `INSERT INTO team_members (team_id, member_name, password_hash, is_leader)
+       VALUES ($1, $2, $3, true) RETURNING id, member_name`,
+      [team.id, name, personalPasswordHash],
+    );
+    await client.query("COMMIT");
+    client.release();
+    clearAdminSessionCookie(res);
+    setTeamSessionCookie(res, { role: "team", teamId: team.id, memberId: member.rows[0].id });
     emit({ type: "team_joined", teamName: team.team_name, at: new Date().toISOString() });
-    return res.status(201).json({ team: { id: team.id, teamName: team.team_name } });
+    return res.status(201).json({ team: { id: team.id, teamName: team.team_name, memberId: member.rows[0].id, memberName: member.rows[0].member_name, isLeader: true, memberCount: memberCount ?? 1 } });
   } catch (err) {
+    await client?.query("ROLLBACK").catch(() => {});
+    client?.release();
     if (err.code === "23505") {
-      // unique_violation on team_name_key
       return res.status(409).json({ error: "That team name is already taken." });
     }
     console.error("Register failed:", err);
@@ -102,325 +336,61 @@ router.post("/register", authLimiter, async (req, res) => {
   }
 });
 
-// New flow: a leader is a personal account that owns a team. The original
-// /register route remains intact for already-created team accounts.
-router.post("/leader/register", authLimiter, async (req, res) => {
-  const parsed = leaderRegistrationSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten().fieldErrors });
-  }
-
-  const { teamName, description, displayName, email, password } = parsed.data;
-  const logoUrl = parsed.data.logoUrl || null;
-  let client;
-  try {
-    const passwordHash = await hashPassword(password);
-    client = await pool.connect();
-    await client.query("BEGIN");
-    const teamResult = await client.query(
-      `INSERT INTO teams (team_name, password_hash, description, logo_url)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, team_name, description, logo_url`,
-      [teamName, passwordHash, description, logoUrl],
-    );
-    const team = teamResult.rows[0];
-    const memberResult = await client.query(
-      `INSERT INTO members (display_name, email, password_hash, team_id, role)
-       VALUES ($1, $2, $3, $4, 'leader')
-       RETURNING id, display_name, email, role, team_id`,
-      [displayName, email, passwordHash, team.id],
-    );
-    const member = memberResult.rows[0];
-    await client.query("COMMIT");
-
-    setMemberCookies(res, member, team);
-    emit({ type: "team_joined", teamName: team.team_name, at: new Date().toISOString() });
-    emit({ type: "data_changed", resource: "teams", at: new Date().toISOString() });
-    return res.status(201).json({
-      team: { id: team.id, teamName: team.team_name, description: team.description, logoUrl: team.logo_url },
-      member: publicMember(member),
-    });
-  } catch (err) {
-    if (client) await client.query("ROLLBACK").catch(() => {});
-    if (err.code === "23505") {
-      return res.status(409).json({ error: "That team name or member email is already registered." });
-    }
-    console.error("Leader registration failed:", err);
-    return res.status(503).json({ error: "Server is busy right now. Please retry." });
-  } finally {
-    client?.release();
-  }
-});
-
-router.post("/member/register", authLimiter, async (req, res) => {
-  const parsed = memberCredentialsSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten().fieldErrors });
-  }
-  try {
-    const passwordHash = await hashPassword(parsed.data.password);
-    const result = await pool.query(
-      `INSERT INTO members (display_name, email, password_hash)
-       VALUES ($1, $2, $3)
-       RETURNING id, display_name, email, role, team_id`,
-      [parsed.data.displayName, parsed.data.email, passwordHash],
-    );
-    const member = result.rows[0];
-    setMemberCookies(res, member);
-    return res.status(201).json({ member: publicMember(member) });
-  } catch (err) {
-    if (err.code === "23505") return res.status(409).json({ error: "That email is already registered." });
-    console.error("Member registration failed:", err);
-    return res.status(503).json({ error: "Server is busy right now. Please retry." });
-  }
-});
-
 router.post("/login", authLimiter, async (req, res) => {
-  const parsed = credentialsSchema.safeParse(req.body);
+  if (req.body?.password && !req.body?.personalPassword) {
+    const legacy = z.object({ teamName: z.string().trim().min(2).max(100), password: z.string().min(8).max(200) }).safeParse(req.body);
+    if (!legacy.success) return res.status(400).json({ error: "Invalid input" });
+    const result = await pool.query("SELECT id, team_name, password_hash, banned FROM teams WHERE team_name_key = lower($1)", [legacy.data.teamName]);
+    const team = result.rows[0];
+    if (!team || !(await verifyPassword(legacy.data.password, team.password_hash))) return res.status(401).json({ error: "Incorrect team name or password." });
+    if (team.banned) return res.status(403).json({ error: "This team has been suspended. Contact an organizer." });
+    setTeamSessionCookie(res, { role: "team", teamId: team.id });
+    clearAdminSessionCookie(res);
+    return res.json({ team: { id: team.id, teamName: team.team_name } });
+  }
+  const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid input" });
   }
-  const { teamName, password } = parsed.data;
+  const { name, personalPassword, teamName, teamPassword } = parsed.data;
 
   try {
     const result = await pool.query(
-      `SELECT id, team_name, password_hash, banned FROM teams WHERE team_name_key = lower($1)`,
-      [teamName],
+      `SELECT t.id, t.team_name, t.password_hash, t.banned, t.member_count,
+          m.id AS member_id, m.member_name, m.password_hash AS member_password_hash, m.is_leader
+       FROM teams t JOIN team_members m ON m.team_id = t.id AND m.member_name_key = lower($2)
+       WHERE t.team_name_key = lower($1)`,
+      [teamName, name],
     );
     const team = result.rows[0];
     // Same generic message whether the team doesn't exist or the
     // password is wrong — don't leak which teams are registered.
-    if (!team || !(await verifyPassword(password, team.password_hash))) {
-      return res.status(401).json({ error: "Incorrect team name or password." });
+    if (!team || !(await verifyPassword(teamPassword, team.password_hash)) || !(await verifyPassword(personalPassword, team.member_password_hash))) {
+      return res.status(401).json({ error: "Incorrect name or password." });
     }
     if (team.banned) {
       return res.status(403).json({ error: "This team has been suspended. Contact an organizer." });
     }
-    setSessionCookie(res, { role: "team", teamId: team.id, teamName: team.team_name });
-    return res.json({ team: { id: team.id, teamName: team.team_name } });
+    clearAdminSessionCookie(res);
+    setTeamSessionCookie(res, { role: "team", teamId: team.id, memberId: team.member_id });
+    return res.json({ team: { id: team.id, teamName: team.team_name, memberId: team.member_id, memberName: team.member_name, isLeader: team.is_leader, memberCount: team.member_count } });
   } catch (err) {
     console.error("Login failed:", err);
     return res.status(503).json({ error: "Server is busy right now. Please retry." });
   }
 });
 
-router.post("/member/login", authLimiter, async (req, res) => {
-  const parsed = z.object({
-    email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()),
-    password: z.string().min(8).max(200),
-  }).safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
-
-  try {
-    const result = await pool.query(
-      `SELECT m.id, m.display_name, m.email, m.password_hash, m.role, m.team_id,
-              t.team_name, t.description, t.logo_url, t.banned
-       FROM members m
-       LEFT JOIN teams t ON t.id = m.team_id
-       WHERE m.email_key = lower($1)`,
-      [parsed.data.email],
-    );
-    const member = result.rows[0];
-    if (!member || !(await verifyPassword(parsed.data.password, member.password_hash))) {
-      return res.status(401).json({ error: "Incorrect email or password." });
-    }
-    const team = member.team_id && !member.banned
-      ? { id: member.team_id, team_name: member.team_name, description: member.description, logo_url: member.logo_url }
-      : null;
-    setMemberCookies(res, member, team);
-    return res.json({
-      member: publicMember(member),
-      team: team ? { id: team.id, teamName: team.team_name, description: team.description, logoUrl: team.logo_url } : null,
-    });
-  } catch (err) {
-    console.error("Member login failed:", err);
-    return res.status(503).json({ error: "Server is busy right now. Please retry." });
-  }
-});
-
 router.post("/logout", (req, res) => {
-  clearSessionCookie(res, "team");
-  res.json({ success: true });
-});
-
-router.post("/member/logout", (req, res) => {
-  clearSessionCookie(res, ["member", "team"]);
+  clearTeamSessionCookie(res);
   res.json({ success: true });
 });
 
 router.get("/me", requireTeam, (req, res) => {
-  res.json({ team: req.team });
-});
-
-router.get("/member/me", requireMember, async (req, res, next) => {
-  try {
-    const result = await pool.query(
-      `SELECT i.id, i.created_at, t.id AS team_id, t.team_name, t.description, t.logo_url,
-              inviter.display_name AS invited_by
-       FROM team_invitations i
-       JOIN teams t ON t.id = i.team_id
-       LEFT JOIN members inviter ON inviter.id = i.invited_by_member_id
-       WHERE i.member_id = $1 AND i.status = 'pending' AND NOT t.banned
-       ORDER BY i.created_at DESC`,
-      [req.member.id],
-    );
-    res.json({
-      member: {
-        id: req.member.id,
-        displayName: req.member.displayName,
-        email: req.member.email,
-        role: req.member.role,
-        team: req.member.team,
-      },
-      invitations: result.rows.map((invite) => ({
-        id: invite.id,
-        createdAt: invite.created_at,
-        invitedBy: invite.invited_by,
-        team: { id: invite.team_id, teamName: invite.team_name, description: invite.description, logoUrl: invite.logo_url },
-      })),
-    });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.get("/team/members", requireTeam, async (req, res, next) => {
-  try {
-    const result = await pool.query(
-      `SELECT id, display_name,
-              CASE WHEN $2::boolean THEN email ELSE NULL END AS email,
-              role, created_at
-       FROM members WHERE team_id = $1
-       ORDER BY CASE role WHEN 'leader' THEN 0 ELSE 1 END, created_at ASC`,
-      [req.team.id, req.team.memberRole === "leader"],
-    );
-    res.json({ members: result.rows.map((member) => ({
-      id: member.id,
-      displayName: member.display_name,
-      email: member.email,
-      role: member.role,
-      createdAt: member.created_at,
-    })) });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.post("/team/invitations", requireTeam, requireLeader, async (req, res, next) => {
-  const parsed = invitationSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Enter a valid member email." });
-  try {
-    const memberResult = await pool.query(
-      "SELECT id, display_name, email, team_id FROM members WHERE email_key = lower($1)",
-      [parsed.data.email],
-    );
-    const member = memberResult.rows[0];
-    if (!member) return res.status(404).json({ error: "No registered member exists with that email." });
-    if (member.team_id) return res.status(409).json({ error: "That member is already assigned to a team." });
-
-    const invitationResult = await pool.query(
-      `INSERT INTO team_invitations (team_id, member_id, invited_by_member_id)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (team_id, member_id) WHERE status = 'pending' DO NOTHING
-       RETURNING id, created_at`,
-      [req.team.id, member.id, req.team.memberId],
-    );
-    if (!invitationResult.rows[0]) return res.status(409).json({ error: "That member already has a pending invitation." });
-    res.status(201).json({ invitation: {
-      id: invitationResult.rows[0].id,
-      createdAt: invitationResult.rows[0].created_at,
-      member: { id: member.id, displayName: member.display_name, email: member.email },
-    } });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.get("/invitations", requireMember, async (req, res, next) => {
-  try {
-    const result = await pool.query(
-      `SELECT i.id, i.created_at, t.id AS team_id, t.team_name, t.description, t.logo_url,
-              inviter.display_name AS invited_by
-       FROM team_invitations i
-       JOIN teams t ON t.id = i.team_id
-       LEFT JOIN members inviter ON inviter.id = i.invited_by_member_id
-       WHERE i.member_id = $1 AND i.status = 'pending' AND NOT t.banned
-       ORDER BY i.created_at DESC`,
-      [req.member.id],
-    );
-    res.json({ invitations: result.rows.map((invite) => ({
-      id: invite.id,
-      createdAt: invite.created_at,
-      invitedBy: invite.invited_by,
-      team: { id: invite.team_id, teamName: invite.team_name, description: invite.description, logoUrl: invite.logo_url },
-    })) });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.post("/invitations/:id/accept", requireMember, async (req, res, next) => {
-  let client;
-  try {
-    client = await pool.connect();
-    await client.query("BEGIN");
-    const invitationResult = await client.query(
-      `SELECT i.id, i.team_id, t.team_name, t.description, t.logo_url
-       FROM team_invitations i
-       JOIN teams t ON t.id = i.team_id
-       WHERE i.id = $1 AND i.member_id = $2 AND i.status = 'pending' AND NOT t.banned
-       FOR UPDATE`,
-      [req.params.id, req.member.id],
-    );
-    const invitation = invitationResult.rows[0];
-    if (!invitation) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Invitation not found." });
-    }
-    const memberResult = await client.query(
-      `UPDATE members SET team_id = $1, role = 'member'
-       WHERE id = $2 AND team_id IS NULL
-       RETURNING id, display_name, email, role, team_id`,
-      [invitation.team_id, req.member.id],
-    );
-    if (!memberResult.rows[0]) {
-      await client.query("ROLLBACK");
-      return res.status(409).json({ error: "You are already assigned to a team." });
-    }
-    await client.query(
-      "UPDATE team_invitations SET status = 'accepted', responded_at = now() WHERE id = $1",
-      [invitation.id],
-    );
-    await client.query("COMMIT");
-
-    const member = memberResult.rows[0];
-    setSessionCookie(res, { role: "team", teamId: invitation.team_id, teamName: invitation.team_name, memberId: member.id });
-    emit({ type: "data_changed", resource: "teams", at: new Date().toISOString() });
-    return res.json({
-      member: publicMember(member),
-      team: { id: invitation.team_id, teamName: invitation.team_name, description: invitation.description, logoUrl: invitation.logo_url },
-    });
-  } catch (err) {
-    if (client) await client.query("ROLLBACK").catch(() => {});
-    next(err);
-  } finally {
-    client?.release();
-  }
-});
-
-router.post("/invitations/:id/decline", requireMember, async (req, res, next) => {
-  try {
-    const result = await pool.query(
-      `UPDATE team_invitations SET status = 'declined', responded_at = now()
-       WHERE id = $1 AND member_id = $2 AND status = 'pending'
-       RETURNING id`,
-      [req.params.id, req.member.id],
-    );
-    if (!result.rows[0]) return res.status(404).json({ error: "Invitation not found." });
-    return res.json({ success: true });
-  } catch (err) {
-    next(err);
-  }
+  pool.query(
+    `SELECT id, member_name AS name, is_leader AS "isLeader"
+     FROM team_members WHERE team_id = $1 ORDER BY is_leader DESC, created_at ASC`,
+    [req.team.id],
+  ).then((result) => res.json({ team: { ...req.team, members: result.rows } })).catch((err) => res.status(503).json({ error: "Unable to load team." }));
 });
 
 export default router;

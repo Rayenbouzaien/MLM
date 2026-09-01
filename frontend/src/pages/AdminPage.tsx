@@ -28,6 +28,10 @@ function AdminLogin({ onLoggedIn }: { onLoggedIn: () => void }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!password.trim()) {
+      setError("Enter the admin password.");
+      return;
+    }
     setLoading(true);
     try {
       await api.post("/api/admin/login", { password });
@@ -51,7 +55,8 @@ function AdminLogin({ onLoggedIn }: { onLoggedIn: () => void }) {
         </h1>
         <input
           type="password"
-          required
+          aria-label="Admin password"
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Admin password"
@@ -279,7 +284,7 @@ function TeamForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () => 
   );
 }
 
-export default function AdminPage() {
+export default function AdminPage({ onSessionChange }: { onSessionChange?: (active: boolean) => void }) {
   const [authed, setAuthed] = useState(false);
   const [checking, setChecking] = useState(true);
   const [tab, setTab] = useState<"challenges" | "teams">("challenges");
@@ -291,10 +296,11 @@ export default function AdminPage() {
   async function logout() {
     await api.post("/api/admin/logout").catch(() => {});
     setAuthed(false);
+    onSessionChange?.(false);
   }
 
   if (checking) return <div className="flex-1 grid place-items-center bg-[#080810] text-sm text-gray-400">Checking Race Control access…</div>;
-  if (!authed) return <AdminLogin onLoggedIn={() => setAuthed(true)} />;
+  if (!authed) return <AdminLogin onLoggedIn={() => { setAuthed(true); onSessionChange?.(true); }} />;
 
   return (
     <div className="flex-1 p-6" style={{ background: "linear-gradient(160deg,#080810 0%,#10101a 100%)", maxWidth: 900, margin: "0 auto", width: "100%" }}>

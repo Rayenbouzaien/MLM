@@ -1,0 +1,13 @@
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS email_key TEXT GENERATED ALWAYS AS (lower(email)) STORED;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS handle TEXT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS handle_key TEXT GENERATED ALWAYS AS (lower(handle)) STORED;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS tech_stack TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS licence_level TEXT NOT NULL DEFAULT 'first-time-hackathoner';
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS role_type TEXT NOT NULL DEFAULT 'FREE_AGENT' CHECK (role_type IN ('LEADER', 'MEMBER', 'FREE_AGENT'));
+CREATE UNIQUE INDEX IF NOT EXISTS accounts_email_key_idx ON accounts (email_key) WHERE email_key IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS accounts_handle_key_idx ON accounts (handle_key) WHERE handle_key IS NOT NULL;
+
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS pit_pass_code TEXT;
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS track_id BIGINT REFERENCES challenges(id) ON DELETE SET NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS teams_pit_pass_code_idx ON teams (pit_pass_code) WHERE pit_pass_code IS NOT NULL;

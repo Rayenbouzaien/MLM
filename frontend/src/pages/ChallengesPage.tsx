@@ -4,6 +4,7 @@ import { API_BASE, api, ApiError } from "../lib/api";
 interface TeamSession {
   id: string;
   teamName: string;
+  isLeader: boolean;
 }
 
 interface Challenge {
@@ -50,12 +51,12 @@ function ChallengeCard({
 
       <button
         type="button"
-        disabled={saving}
+        disabled={disabled || saving}
         onClick={onToggle}
         className="mt-auto w-full border px-4 py-3 text-xs font-bold uppercase tracking-[0.15em] transition-colors disabled:cursor-wait disabled:opacity-60"
         style={{ borderColor: challenge.color, background: selected ? challenge.color : "transparent", color: selected ? "#09090d" : challenge.color }}
       >
-        {saving ? "Saving…" : disabled ? "Sign in to select" : selected ? "Remove selection" : "Select challenge"}
+        {saving ? "Saving…" : disabled ? "Only the team leader can select" : selected ? "Remove selection" : "Select challenge"}
       </button>
     </article>
   );
@@ -102,7 +103,7 @@ export default function ChallengesPage({ team, onLogin }: { team: TeamSession | 
   }, [load]);
 
   async function toggleChallenge(challengeId: string) {
-    if (!team) {
+    if (!team || !team.isLeader) {
       onLogin();
       return;
     }
@@ -132,7 +133,7 @@ export default function ChallengesPage({ team, onLogin }: { team: TeamSession | 
               <h1 className="font-headline text-4xl font-black uppercase tracking-wide sm:text-5xl">Choose your race.</h1>
               <p className="mt-3 max-w-2xl text-gray-400">Teams can select every challenge they intend to explore. Your choices are saved to your team account.</p>
             </div>
-            <p className="border-l-2 border-[#E10600] pl-3 text-sm text-gray-300">{team ? `Signed in as ${team.teamName}` : "Sign in to save your selections."}</p>
+            <p className="border-l-2 border-[#E10600] pl-3 text-sm text-gray-300">{team ? `${team.teamName} · ${team.isLeader ? "Team leader" : "Team member"}` : "Sign in to save your selections."}</p>
           </div>
         </header>
 
@@ -146,7 +147,7 @@ export default function ChallengesPage({ team, onLogin }: { team: TeamSession | 
           <section className="py-20 text-center" role="status"><h2 className="font-headline text-2xl font-bold uppercase">No challenges published yet</h2><p className="mt-2 text-gray-400">Race Control will publish the briefing shortly.</p></section>
         ) : (
           <section className="grid grid-cols-1 gap-5 py-8 md:grid-cols-2 lg:grid-cols-3" aria-label="Available challenges">
-            {challenges.map((challenge) => <ChallengeCard key={challenge.id} challenge={challenge} selected={selectedIds.has(challenge.id)} disabled={!team} saving={savingId === challenge.id} onToggle={() => void toggleChallenge(challenge.id)} />)}
+            {challenges.map((challenge) => <ChallengeCard key={challenge.id} challenge={challenge} selected={selectedIds.has(challenge.id)} disabled={!team || !team.isLeader} saving={savingId === challenge.id} onToggle={() => void toggleChallenge(challenge.id)} />)}
           </section>
         )}
       </div>

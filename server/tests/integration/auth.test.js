@@ -10,7 +10,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await pool.query("TRUNCATE teams, submissions, challenges RESTART IDENTITY CASCADE");
+  await pool.query("TRUNCATE accounts, teams, submissions, challenges RESTART IDENTITY CASCADE");
 });
 
 afterAll(async () => {
@@ -41,56 +41,31 @@ describe("POST /api/auth/register", () => {
     await request(app).post("/api/auth/register").send({ teamName: "Short Pw Team", password: "short" }).expect(400);
   });
 
+  it("allows a team leader to create a team with a member count and a member to join it", async () => {
+    const leader = request.agent(app);
+    const create = await leader
+      .post("/api/auth/register")
+      .send({ teamName: "Apex Crew", password: "validpass1", role: "leader", memberCount: 5 })
+      .expect(201);
+    expect(create.body.team.teamName).toBe("Apex Crew");
+
+    const member = request.agent(app);
+    const join = await member
+      .post("/api/auth/register")
+      .send({ teamName: "Apex Crew", password: "validpass1", role: "member" })
+      .expect(201);
+    expect(join.body.team.teamName).toBe("Apex Crew");
+
+    const { rows } = await pool.query("SELECT team_role, member_count FROM teams WHERE team_name = 'Apex Crew'");
+    expect(rows[0].team_role).toBe("leader");
+    expect(Number(rows[0].member_count)).toBe(5);
+  });
+
   it("never stores the plaintext password", async () => {
     await request(app).post("/api/auth/register").send({ teamName: "Hash Check Team", password: "vroomvroom" }).expect(201);
     const { rows } = await pool.query("SELECT password_hash FROM teams WHERE team_name = 'Hash Check Team'");
     expect(rows[0].password_hash).not.toBe("vroomvroom");
     expect(rows[0].password_hash).toMatch(/^\$2[aby]\$/); // bcrypt hash shape
-  });
-});
-
-describe("leader and member registration", () => {
-  it("creates a leader-owned team with its profile and a member session", async () => {
-    const browser = request.agent(app);
-    const response = await browser
-      .post("/api/auth/leader/register")
-      .send({
-        teamName: "Night Shift Racing",
-        description: "A data-driven endurance crew.",
-        logoUrl: "https://images.example.test/night-shift.png",
-        displayName: "Mina Driver",
-        email: "mina@example.com",
-        password: "password123",
-      })
-      .expect(201);
-
-    expect(response.body.team).toMatchObject({ teamName: "Night Shift Racing", description: "A data-driven endurance crew." });
-    expect(response.body.member).toMatchObject({ displayName: "Mina Driver", email: "mina@example.com", role: "leader" });
-    await browser.get("/api/auth/me").expect(200);
-    const memberProfile = await browser.get("/api/auth/member/me").expect(200);
-    expect(memberProfile.body.member).toMatchObject({ role: "leader" });
-  });
-
-  it("lets an existing member accept an invitation and join the leader's team", async () => {
-    const leader = request.agent(app);
-    await leader.post("/api/auth/leader/register").send({
-      teamName: "Invite Only Racing", displayName: "Lead Driver", email: "lead@example.com", password: "password123",
-    }).expect(201);
-
-    const member = request.agent(app);
-    await member.post("/api/auth/member/register").send({
-      displayName: "Guest Driver", email: "guest@example.com", password: "password123",
-    }).expect(201);
-
-    await leader.post("/api/auth/team/invitations").send({ email: "guest@example.com" }).expect(201);
-    const invitations = await member.get("/api/auth/invitations").expect(200);
-    expect(invitations.body.invitations).toHaveLength(1);
-
-    await member.post(`/api/auth/invitations/${invitations.body.invitations[0].id}/accept`).expect(200);
-    const teamSession = await member.get("/api/auth/me").expect(200);
-    expect(teamSession.body.team).toMatchObject({ teamName: "Invite Only Racing" });
-    const roster = await leader.get("/api/auth/team/members").expect(200);
-    expect(roster.body.members).toEqual(expect.arrayContaining([expect.objectContaining({ email: "guest@example.com", role: "member" })]));
   });
 });
 
@@ -156,27 +131,91 @@ describe("session lifecycle", () => {
     expect(response.headers["set-cookie"]).toBeDefined();
   });
 
-  it("keeps a team session and an admin session separate in the same browser", async () => {
-    const browser = request.agent(app);
-    await browser.post("/api/auth/register").send({ teamName: "Two Roles", password: "password123" }).expect(201);
-    await browser.post("/api/admin/login").send({ password: process.env.ADMIN_PASSWORD }).expect(200);
+  it("switches from a team session to an admin session in the same browser", async () => {
+    const agent = request.agent(app);
+    await agent.post("/api/auth/register").send({ teamName: "Admin Should Not Kick Team", password: "password123" }).expect(201);
+    await agent.get("/api/auth/me").expect(200);
 
-    await browser.get("/api/auth/me").expect(200);
-    await browser.get("/api/admin/me").expect(200, { admin: true });
+    await agent.post("/api/admin/login").send({ password: process.env.ADMIN_PASSWORD }).expect(200);
 
-    await browser.post("/api/auth/logout").expect(200);
-    await browser.get("/api/auth/me").expect(401);
-    await browser.get("/api/admin/me").expect(200, { admin: true });
+    await agent.get("/api/auth/me").expect(401);
+    await agent.get("/api/admin/me").expect(200);
   });
 
-  it("keeps the admin session active after deleting the matching team", async () => {
-    const browser = request.agent(app);
-    await browser.post("/api/auth/register").send({ teamName: "Deleted Driver", password: "password123" }).expect(201);
-    await browser.post("/api/admin/login").send({ password: process.env.ADMIN_PASSWORD }).expect(200);
-    const { rows } = await pool.query("SELECT id FROM teams WHERE team_name = 'Deleted Driver'");
+  it("switches from an admin session to a team session in the same browser", async () => {
+    const agent = request.agent(app);
+    await agent.post("/api/admin/login").send({ password: process.env.ADMIN_PASSWORD }).expect(200);
+    await agent.get("/api/admin/me").expect(200);
 
-    await browser.delete(`/api/admin/teams/${rows[0].id}`).expect(200);
-    await browser.get("/api/auth/me").expect(403);
-    await browser.get("/api/admin/me").expect(200, { admin: true });
+    await agent.post("/api/auth/register").send({ teamName: "Team Takes Over", password: "password123" }).expect(201);
+
+    await agent.get("/api/admin/me").expect(401);
+    await agent.get("/api/auth/me").expect(200);
+  });
+
+  it("creates separate leader and member accounts under one team", async () => {
+    const leader = request.agent(app);
+    await leader.post("/api/auth/register").send({
+      role: "leader", name: "Alice", personalPassword: "alicepass1",
+      teamName: "Separate Accounts", teamPassword: "teampass1", memberCount: 2,
+    }).expect(201);
+
+    const member = request.agent(app);
+    await member.post("/api/auth/register").send({
+      role: "member", name: "Bob", personalPassword: "bobpass1",
+      teamName: "Separate Accounts", teamPassword: "teampass1",
+    }).expect(201);
+
+    const roster = await member.get("/api/auth/me").expect(200);
+    expect(roster.body.team.memberName).toBe("Bob");
+    expect(roster.body.team.isLeader).toBe(false);
+    expect(roster.body.team.members.map((entry) => entry.name)).toEqual(["Alice", "Bob"]);
+
+    const leaderRoster = await leader.get("/api/auth/me").expect(200);
+    expect(leaderRoster.body.team.isLeader).toBe(true);
+    expect(leaderRoster.body.team.members).toHaveLength(2);
+  });
+
+  it("allows only the leader to select a challenge", async () => {
+    const leader = request.agent(app);
+    await leader.post("/api/auth/register").send({ role: "leader", name: "Lead", personalPassword: "leadpass1", teamName: "Challenge Team", teamPassword: "teampass1", memberCount: 2 }).expect(201);
+    const member = request.agent(app);
+    await member.post("/api/auth/register").send({ role: "member", name: "Member", personalPassword: "memberpass1", teamName: "Challenge Team", teamPassword: "teampass1" }).expect(201);
+    const admin = request.agent(app);
+    await admin.post("/api/admin/login").send({ password: process.env.ADMIN_PASSWORD }).expect(200);
+    const challenge = await admin.post("/api/challenges").send({ title: "Team Challenge", description: "Build it." }).expect(201);
+
+    await member.put("/api/challenges/me").send({ challengeIds: [String(challenge.body.challenge.id)] }).expect(403);
+    await leader.put("/api/challenges/me").send({ challengeIds: [String(challenge.body.challenge.id)] }).expect(200);
+  });
+
+  it("lets a leader log out of a team and log back into the same team", async () => {
+    const agent = request.agent(app);
+    await agent.post("/api/auth/account/register").send({ name: "Relogin Leader", password: "leaderpass1" }).expect(201);
+    await agent.post("/api/auth/team/create").send({ teamName: "Relogin Team", teamPassword: "teampass1", memberCount: 1 }).expect(201);
+    await agent.post("/api/auth/logout").expect(200);
+    await agent.get("/api/auth/me").expect(401);
+
+    const account = await agent.post("/api/auth/account/login").send({ name: "Relogin Leader", password: "leaderpass1" }).expect(200);
+    expect(account.body.teams[0].isLeader).toBe(true);
+    await agent.post("/api/auth/team/join").send({ teamName: "Relogin Team", teamPassword: "teampass1" }).expect(200);
+    await agent.get("/api/auth/me").expect(200);
+  });
+
+  it("allows a leader to create only one team", async () => {
+    const agent = request.agent(app);
+    await agent.post("/api/auth/account/register").send({ name: "One Team Leader", password: "leaderpass1" }).expect(201);
+    await agent.post("/api/auth/team/create").send({ teamName: "First Team", teamPassword: "teampass1", memberCount: 2 }).expect(201);
+    await agent.post("/api/auth/logout").expect(200);
+    await agent.post("/api/auth/team/create").send({ teamName: "Second Team", teamPassword: "teampass2", memberCount: 2 }).expect(409);
+  });
+
+  it("logs out the account and its active team session", async () => {
+    const agent = request.agent(app);
+    await agent.post("/api/auth/account/register").send({ name: "Logout Account", password: "accountpass1" }).expect(201);
+    await agent.post("/api/auth/team/create").send({ teamName: "Logout Team", teamPassword: "teampass1", memberCount: 1 }).expect(201);
+    await agent.post("/api/auth/account/logout").expect(200);
+    await agent.get("/api/auth/account/me").expect(401);
+    await agent.get("/api/auth/me").expect(401);
   });
 });
