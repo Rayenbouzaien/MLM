@@ -83,6 +83,22 @@ describe("Challenges CRUD authorization", () => {
       .send({ title: "X", description: "Y", color: "not-a-color" })
       .expect(400);
   });
+
+  it("shows Race Control which teams entered each challenge", async () => {
+    const admin = await adminAgent();
+    const created = await admin
+      .post("/api/challenges")
+      .send({ title: "Telemetry", description: "Build it." })
+      .expect(201);
+    const team = request.agent(app);
+    await team.post("/api/auth/register").send({ teamName: "Selection Crew", password: "password123" }).expect(201);
+    await team.put("/api/challenges/me").send({ challengeIds: [created.body.challenge.id] }).expect(200);
+
+    const response = await admin.get("/api/admin/challenges").expect(200);
+    expect(response.body.challenges[0].selected_teams).toEqual([
+      expect.objectContaining({ teamName: "Selection Crew" }),
+    ]);
+  });
 });
 
 describe("Team management", () => {

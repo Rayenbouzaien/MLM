@@ -1,6 +1,20 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../lib/api";
-import type { Member, Team } from "./LoginPage";
+
+// This legacy account view talks to the member-account API, whose response shape
+// is deliberately different from the active team-session shape used by LoginPage.
+interface Team {
+  id: string;
+  teamName: string;
+  logoUrl?: string | null;
+  description?: string | null;
+}
+
+interface Member {
+  id: string;
+  displayName: string;
+  role: "leader" | "member";
+}
 
 interface Invitation {
   id: string;

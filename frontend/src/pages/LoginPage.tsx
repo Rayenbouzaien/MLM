@@ -113,7 +113,7 @@ export default function LoginPage({
                 <input type="password" required minLength={8} value={teamPassword} onChange={(event) => setTeamPassword(event.target.value)} placeholder="Create team password" className="mt-1 w-full px-3 py-2.5 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
               </label>
               <label className="text-gray-500 text-xs tracking-widest uppercase">Total Members Including You
-                <input type="number" min={1} max={50} required value={memberCount} onChange={(event) => setMemberCount(Math.min(50, Math.max(1, Number(event.target.value) || 1)))} className="mt-1 w-full px-3 py-2.5 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
+                <input type="number" min={1} max={5} required value={memberCount} onChange={(event) => setMemberCount(Math.min(5, Math.max(1, Number(event.target.value) || 1)))} className="mt-1 w-full px-3 py-2.5 rounded text-sm text-white outline-none" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.15)" }} />
               </label>
             </>}
             {action === "member" && <>

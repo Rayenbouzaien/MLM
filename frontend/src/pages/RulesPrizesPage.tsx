@@ -37,9 +37,9 @@ const REGULATIONS = [
 ];
 
 const CLASSIFICATION = [
-  { place: "P2", title: "Second Place", description: "Celebrated for an exceptional final solution", accent: "cyan" },
-  { place: "P1", title: "Race Winner", description: "Recognised at the awards and closing ceremony", accent: "winner" },
-  { place: "P3", title: "Third Place", description: "Honoured alongside the final podium", accent: "bronze" },
+  { place: "P2", title: "Second Place", description: "Celebrated for an exceptional final solution", accent: "cyan", trophy: "silver" },
+  { place: "P1", title: "Race Winner", description: "Recognised at the awards and closing ceremony", accent: "winner", trophy: "gold" },
+  { place: "P3", title: "Third Place", description: "Honoured alongside the final podium", accent: "bronze", trophy: "bronze" },
 ];
 
 const INNOVATION = {
@@ -90,8 +90,10 @@ function RegulationDirective({ regulation }: { regulation: typeof REGULATIONS[nu
 }
 
 function ClassificationPanel({ award }: { award: typeof CLASSIFICATION[number] }) {
+  const [failed, setFailed] = useState(false);
   return (
     <article className={`classification-panel classification-panel--${award.accent}`}>
+      {!failed && <div className={`classification-panel__trophy classification-panel__trophy--${award.trophy}`} aria-hidden="true"><img src="/assets/podium-trophies.png" alt="" loading="lazy" onError={() => setFailed(true)} /></div>}
       <p>Final classification</p>
       <span>{award.place}</span>
       <h3>{award.title}</h3>

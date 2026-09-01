@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Session = {
   id: string;
@@ -50,10 +50,40 @@ const RACE_DAYS: RaceDay[] = [
   },
 ];
 
+const EVENT_DATE: Record<RaceDay["id"], string> = {
+  "day-one": "2026-10-10",
+  "day-two": "2026-10-11",
+};
+
+function sessionWindow(day: RaceDay, session: Session) {
+  const [startClock, endClock] = session.time.split("-");
+  const start = new Date(`${EVENT_DATE[day.id]}T${startClock}:00+01:00`);
+  const end = new Date(`${EVENT_DATE[day.id]}T${endClock ?? startClock}:00+01:00`);
+  if (!endClock) end.setMinutes(end.getMinutes() + 30);
+  if (end < start) end.setDate(end.getDate() + 1);
+  return { start, end };
+}
+
+function activeSessionAt(now: Date, sessions: { day: RaceDay; session: Session }[]) {
+  const dated = sessions.map((entry) => ({ ...entry, ...sessionWindow(entry.day, entry.session) }));
+  const active = dated.find((entry) => now >= entry.start && now < entry.end);
+  if (active) return { ...active, mode: "live" as const };
+  const completed = dated.filter((entry) => entry.start <= now).at(-1);
+  return completed ? { ...completed, mode: "completed" as const } : null;
+}
+
 export default function CircuitPage() {
-  const sessions = RACE_DAYS.flatMap((day) => day.sessions.map((session) => ({ day, session })));
-  const [activeId, setActiveId] = useState(sessions[0].session.id);
+  const sessions = useMemo(() => RACE_DAYS.flatMap((day) => day.sessions.map((session) => ({ day, session }))), []);
+  const [now, setNow] = useState(() => new Date());
+  const [inspectedId, setInspectedId] = useState(sessions[0].session.id);
+  const scheduled = activeSessionAt(now, sessions);
+  const activeId = scheduled?.session.id ?? inspectedId;
   const active = sessions.find(({ session }) => session.id === activeId) ?? sessions[0];
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
     <main className="race-weekend page-shell page-circuit" aria-labelledby="race-weekend-title">
@@ -65,6 +95,7 @@ export default function CircuitPage() {
             <h1 id="race-weekend-title">The AI Grand Prix<br /><span>moves to the grid.</span></h1>
           </div>
           <p className="race-weekend-intro">10-11 October 2026 at ESSTHS Hammam-Sousse. Follow every checkpoint from registration to the final podium.</p>
+          <p className={`race-weekend-status${scheduled?.mode === "live" ? " is-live" : ""}`} aria-live="polite"><i />{scheduled?.mode === "live" ? `Live now · ${scheduled.session.time}` : scheduled ? `Latest checkpoint · ${scheduled.session.time}` : "Programme armed · schedule begins 10 October"}</p>
         </header>
 
         <div className="race-weekend-layout">
@@ -85,9 +116,10 @@ export default function CircuitPage() {
                 <ol className="race-session-list">
                   {day.sessions.map((session) => {
                     const selected = activeId === session.id;
+                    const live = scheduled?.mode === "live" && scheduled.session.id === session.id;
                     return (
-                      <li key={session.id} className={`race-session race-session--${session.moment ?? "standard"} ${selected ? "is-active" : ""}`}>
-                        <button type="button" onClick={() => setActiveId(session.id)} aria-pressed={selected}>
+                      <li key={session.id} className={`race-session race-session--${session.moment ?? "standard"} ${selected ? "is-active" : ""}${live ? " is-live" : ""}`}>
+                        <button type="button" onClick={() => setInspectedId(session.id)} aria-pressed={selected}>
                           <time>{session.time}</time>
                           <span className="race-checkpoint" aria-hidden="true" />
                           <span className="race-session-copy">
@@ -106,7 +138,7 @@ export default function CircuitPage() {
           </section>
 
           <aside className={`race-session-detail race-session-detail--${active.day.accent}`} aria-live="polite">
-            <p className="race-weekend-kicker">Selected checkpoint</p>
+            <p className="race-weekend-kicker">{scheduled?.mode === "live" && scheduled.session.id === active.session.id ? "Live checkpoint" : "Selected checkpoint"}</p>
             <time>{active.session.time}</time>
             <h2>{active.session.title}</h2>
             <p>{active.session.detail}</p>

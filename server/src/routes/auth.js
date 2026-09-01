@@ -36,7 +36,7 @@ const signupSchema = z.object({
   personalPassword: z.string().min(8).max(200),
   teamName: z.string().trim().min(2).max(100),
   teamPassword: z.string().min(8).max(200),
-  memberCount: z.coerce.number().int().min(1).max(50).optional(),
+  memberCount: z.coerce.number().int().min(1).max(5).optional(),
 });
 
 const loginSchema = z.object({
@@ -58,7 +58,7 @@ const accountSchema = z.object({
 const teamSetupSchema = z.object({
   teamName: z.string().trim().min(2).max(100),
   teamPassword: z.string().min(8).max(200),
-  memberCount: z.coerce.number().int().min(1).max(50).optional(),
+  memberCount: z.coerce.number().int().min(1).max(5).optional(),
   trackId: z.coerce.string().regex(/^\d+$/).optional(),
 });
 
@@ -241,7 +241,7 @@ router.post("/register", authLimiter, async (req, res) => {
         return res.status(201).json({ team: { id: team.id, teamName: team.team_name } });
       }
       const passwordHash = await hashPassword(legacy.data.password);
-      const legacyMemberCount = Number.isInteger(Number(req.body.memberCount)) ? Math.min(50, Math.max(1, Number(req.body.memberCount))) : 1;
+      const legacyMemberCount = Number.isInteger(Number(req.body.memberCount)) ? Math.min(5, Math.max(1, Number(req.body.memberCount))) : 1;
       const result = await pool.query(
         `INSERT INTO teams (team_name, password_hash, member_count) VALUES ($1, $2, $3) RETURNING id, team_name`,
         [legacy.data.teamName, passwordHash, legacyMemberCount],

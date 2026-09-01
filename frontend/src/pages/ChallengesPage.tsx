@@ -22,6 +22,12 @@ interface LiveEvent {
 
 type SyncState = "guest" | "loading" | "saved" | "saving" | "error";
 
+const CHALLENGE_MEDIA: Record<number, string> = {
+  1: "/assets/challenge-strategy.png",
+  2: "/assets/challenge-fan-command.png",
+  3: "/assets/challenge-logistics.png",
+};
+
 function challengeNumber(challenge: Challenge, index: number) {
   return String(challenge.sort_order || index + 1).padStart(2, "0");
 }
@@ -35,6 +41,19 @@ function ChallengeVisual({ number, title }: { number: string; title: string }) {
       <span className="challenge-visual__mark">{monogram}</span>
       <i className="challenge-visual__line challenge-visual__line--one" />
       <i className="challenge-visual__line challenge-visual__line--two" />
+    </div>
+  );
+}
+
+function ChallengeMedia({ challenge, number }: { challenge: Challenge; number: string }) {
+  const [failed, setFailed] = useState(false);
+  const source = CHALLENGE_MEDIA[challenge.sort_order];
+
+  if (!source || failed) return <ChallengeVisual number={number} title={challenge.title} />;
+  return (
+    <div className="challenge-media" aria-hidden="true">
+      <img src={source} alt="" loading="lazy" onError={() => setFailed(true)} />
+      <span>Race {number}</span>
     </div>
   );
 }
@@ -81,7 +100,7 @@ function ChallengeBrief({
       </div>
 
       <div className="challenge-brief__body">
-        <ChallengeVisual number={number} title={challenge.title} />
+        <ChallengeMedia challenge={challenge} number={number} />
         <div className="challenge-brief__copy">
           <p className="challenge-brief__label">Race brief</p>
           <p className="challenge-brief__description">{challenge.description}</p>

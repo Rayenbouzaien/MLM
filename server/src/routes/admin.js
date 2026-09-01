@@ -42,6 +42,29 @@ router.get("/me", requireAdmin, (req, res) => {
   res.json({ admin: true });
 });
 
+// The public Challenge Board intentionally does not expose which teams entered
+// which challenge. Race Control needs that operational view to manage the event.
+router.get("/challenges", requireAdmin, async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT c.id, c.title, c.description, c.deliverables, c.color, c.sort_order,
+              COALESCE(
+                json_agg(json_build_object('id', t.id, 'teamName', t.team_name) ORDER BY tc.selected_at)
+                FILTER (WHERE t.id IS NOT NULL),
+                '[]'::json
+              ) AS selected_teams
+       FROM challenges c
+       LEFT JOIN team_challenges tc ON tc.challenge_id = c.id
+       LEFT JOIN teams t ON t.id = tc.team_id
+       GROUP BY c.id
+       ORDER BY c.sort_order ASC, c.created_at ASC`,
+    );
+    res.json({ challenges: result.rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/admin/teams — every team, plus whether they've submitted.
 router.get("/teams", requireAdmin, async (req, res) => {
   const result = await pool.query(

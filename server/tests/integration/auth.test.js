@@ -61,6 +61,20 @@ describe("POST /api/auth/register", () => {
     expect(Number(rows[0].member_count)).toBe(5);
   });
 
+  it("rejects a constructor capacity above five members", async () => {
+    await request(app)
+      .post("/api/auth/register")
+      .send({
+        role: "leader",
+        name: "Capacity Lead",
+        personalPassword: "leadpass1",
+        teamName: "Oversized Constructor",
+        teamPassword: "teampass1",
+        memberCount: 6,
+      })
+      .expect(400);
+  });
+
   it("never stores the plaintext password", async () => {
     await request(app).post("/api/auth/register").send({ teamName: "Hash Check Team", password: "vroomvroom" }).expect(201);
     const { rows } = await pool.query("SELECT password_hash FROM teams WHERE team_name = 'Hash Check Team'");

@@ -128,6 +128,20 @@ function F1Blueprint({ teamName }: { teamName: string }) {
   );
 }
 
+function ConstructorBlueprint({ teamName }: { teamName: string }) {
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <div className="constructor-blueprint__fallback" role="img" aria-label={`${teamName} constructor blueprint`}>
+        <strong>{teamName}</strong><span>Constructor schematic unavailable</span>
+      </div>
+    );
+  }
+
+  return <img className="constructor-blueprint" src="/assets/f1 blueprint.png" alt={`${teamName} constructor blueprint`} onError={() => setFailed(true)} />;
+}
+
 /* ── Progress tracker ───────────────────────────────────── */
 const MILESTONES = [
   { label: "IDEATION", done: true },
@@ -224,7 +238,7 @@ function DigitBox({ value, label }: { value: string; label: string }) {
 }
 
 /* ── Page ────────────────────────────────────────────────── */
-export default function GaragePage({ onBack, team }: { onBack: () => void; team: { id: string; teamName: string; memberId: string; memberName: string; isLeader: boolean; memberCount: number; selectedTrack?: { id: string; title: string; color: string } | null; members?: { id: string; name: string; isLeader: boolean }[] } }) {
+export default function GaragePage({ onBack, team }: { onBack: () => void; team: { id: string; teamName: string; memberId: string; memberName: string; isLeader: boolean; memberCount: number; pitPassCode?: string; selectedTrack?: { id: string; title: string; color: string } | null; members?: { id: string; name: string; isLeader: boolean }[] } }) {
   const sessionTime = useSessionTime();
   const { days, min, sec } = useDeadline();
   const [repoUrl, setRepoUrl] = useState("");
@@ -393,7 +407,7 @@ export default function GaragePage({ onBack, team }: { onBack: () => void; team:
                 minHeight: 180,
               }}
             >
-              <F1Blueprint teamName={team.teamName} />
+              <ConstructorBlueprint teamName={team.teamName} />
             </div>
 
             {/* Session timer + Submission form */}
