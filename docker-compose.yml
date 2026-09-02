@@ -24,7 +24,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-devpassword}@db:5432/gridlock
+      DATABASE_URL: postgresql://mlm_db_9vz9_user:7cngWFIXCpTlJadVgokQfYIVZDZo5Hfi@dpg-dabttdon74is738fb11g-a/mlm_db_9vz9
       PGSSL: "false"
       PGPOOL_MAX: ${PGPOOL_MAX:-15}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8443}
@@ -56,7 +56,7 @@ services:
       # Read client-side by the browser, so this must be the URL the
       # browser itself can reach — the host-published API port, not the
       # in-network "api" hostname the containers use to talk to each other.
-      VITE_API_URL: http://localhost:4000
+      VITE_API_URL: https://mlm-backend-5j0n.onrender.com
       PORT: 8443
     ports:
       - "8443:8443"
