@@ -10,7 +10,9 @@
     "start": "node src/index.js",
     "migrate": "node src/migrate.js",
     "test": "cross-env DOTENV_CONFIG_PATH=.env.test NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
-    "test:load": "cross-env DOTENV_CONFIG_PATH=.env.test NODE_OPTIONS=--experimental-vm-modules node tests/load/burst-submit.js"
+    "test:load": "cross-env DOTENV_CONFIG_PATH=.env.test NODE_OPTIONS=--experimental-vm-modules node tests/load/burst-submit.js",
+    "test:smoke": "node tests/smoke/deployed-regression.js",
+    "test:cold-start": "node tests/load/cold-start.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
