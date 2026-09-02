@@ -11,6 +11,17 @@ import statsRouter from "./routes/stats.js";
 
 export function createApp() {
   const app = express();
+
+  // Render (and most PaaS hosts) put the app behind a reverse proxy, which
+  // sets X-Forwarded-For to the real client IP. Express ignores that header
+  // by default, so without this, express-rate-limit sees every request as
+  // coming from the proxy's own IP — meaning ALL users would share one
+  // rate-limit bucket instead of getting their own. `1` means "trust the
+  // first hop" (Render's proxy), which is correct for a single-proxy setup
+  // like this and avoids the security risk of trusting arbitrary spoofed
+  // X-Forwarded-For values from further upstream.
+  app.set("trust proxy", 1);
+
   app.use(helmet());
   app.use(express.json({ limit: "10kb" }));
   app.use(cookieParser());

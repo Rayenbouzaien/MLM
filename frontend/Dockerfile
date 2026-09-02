@@ -15,5 +15,5 @@ COPY . .
 # so no extra flags are needed here — this matches how it already runs
 # inside Figma Make's own containerized preview.
 EXPOSE 8443
-
-CMD ["pnpm", "dev"]
+RUN pnpm build
+CMD ["pnpm", "preview"]
