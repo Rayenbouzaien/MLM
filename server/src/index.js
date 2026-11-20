@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { createApp } from "./app.js";
 import { pool, runMigrations } from "./db.js";
+import { closeLive } from "./live.js";
 
 const app = createApp();
 const PORT = process.env.PORT || 4000;
@@ -19,7 +20,7 @@ runMigrations()
 async function shutdown(signal) {
   console.log(`${signal} received, closing pool...`);
   try {
-    await pool.end();
+    await Promise.all([pool.end(), closeLive()]);
   } finally {
     process.exit(0);
   }

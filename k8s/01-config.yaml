@@ -1,0 +1,32 @@
+# Non-sensitive settings.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gridlock-config
+  namespace: gridlock
+data:
+  PGSSL: "false"
+  PGPOOL_MAX: "10"            # per API replica: replicas x 10 must stay < Postgres max_connections (100)
+  REDIS_URL: redis://redis:6379
+  ALLOWED_ORIGINS: ""         # same-origin through nginx, CORS not needed
+  COOKIE_SECURE: "false"      # set "true" once served over HTTPS (ALB / TLS Ingress)
+  COOKIE_SAMESITE: lax
+  TRUST_PROXY: "2"            # hops: ingress-nginx -> web (nginx) -> api
+  PORT: "4000"
+---
+# DEV VALUES ONLY — change before any shared use and never commit real ones.
+# Preferred: create the secret out-of-band and drop this object, e.g.
+#   kubectl -n gridlock create secret generic gridlock-secrets \
+#     --from-literal=POSTGRES_PASSWORD=... --from-literal=DATABASE_URL=... \
+#     --from-literal=JWT_SECRET=$(openssl rand -hex 32) --from-literal=ADMIN_PASSWORD=...
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gridlock-secrets
+  namespace: gridlock
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: devpassword
+  DATABASE_URL: postgresql://postgres:devpassword@db:5432/gridlock
+  JWT_SECRET: dev-only-secret-change-me-32chars
+  ADMIN_PASSWORD: dev-admin-pass

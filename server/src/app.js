@@ -1,8 +1,10 @@
+import os from "node:os";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { pool } from "./db.js";
+import { liveBackend } from "./live.js";
 import authRouter from "./routes/auth.js";
 import submissionsRouter from "./routes/submissions.js";
 import adminRouter from "./routes/admin.js";
@@ -12,15 +14,12 @@ import statsRouter from "./routes/stats.js";
 export function createApp() {
   const app = express();
 
-  // Render (and most PaaS hosts) put the app behind a reverse proxy, which
-  // sets X-Forwarded-For to the real client IP. Express ignores that header
-  // by default, so without this, express-rate-limit sees every request as
-  // coming from the proxy's own IP — meaning ALL users would share one
-  // rate-limit bucket instead of getting their own. `1` means "trust the
-  // first hop" (Render's proxy), which is correct for a single-proxy setup
-  // like this and avoids the security risk of trusting arbitrary spoofed
-  // X-Forwarded-For values from further upstream.
-  app.set("trust proxy", 1);
+  // The API runs behind a reverse proxy (the nginx "web" container, and an
+  // Ingress controller on Kubernetes). The proxy sets X-Forwarded-For to
+  // the real client IP; without trusting it, express-rate-limit would see
+  // every request as coming from the proxy and share one bucket for all
+  // users. TRUST_PROXY = number of proxy hops to trust (default 1).
+  app.set("trust proxy", Number(process.env.TRUST_PROXY ?? 1));
 
   app.use(helmet());
   app.use(express.json({ limit: "10kb" }));
@@ -43,15 +42,29 @@ export function createApp() {
     }),
   );
 
+  // Liveness: the process is up. Also reports which replica answered
+  // (useful to watch load-balancing across pods/containers).
   app.get("/api/health", (req, res) => {
     res.json({
       status: "ok",
+      instance: os.hostname(),
+      live: liveBackend(),
       pool: {
         total: pool.totalCount,
         idle: pool.idleCount,
         waiting: pool.waitingCount,
       },
     });
+  });
+
+  // Readiness: the process can actually serve traffic (database reachable).
+  app.get("/api/ready", async (req, res) => {
+    try {
+      await pool.query("SELECT 1");
+      res.json({ status: "ready", instance: os.hostname() });
+    } catch (err) {
+      res.status(503).json({ status: "not-ready", error: err.message });
+    }
   });
 
   app.use("/api/auth", authRouter);

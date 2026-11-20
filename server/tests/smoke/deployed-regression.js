@@ -1,5 +1,5 @@
 const API_URL = (process.env.API_URL || "http://localhost:4000").replace(/\/$/, "");
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://mlm-ei66.onrender.com";
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "http://localhost:8080";
 const results = [];
 
 function check(condition, message) {

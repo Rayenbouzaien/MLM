@@ -1,3 +1,15 @@
+# Gridlock — 4-tier stack for local orchestration
+#
+#   browser ──> web (nginx :8080) ──/api──> api (Express :4000, scalable) ──> db (Postgres)
+#                                                      └───────────────────> redis (live-feed pub/sub)
+#
+# Usage:
+#   cp .env.example .env
+#   docker compose up -d --build
+#   docker compose up -d --scale api=3        # horizontal scaling of the API
+#   open http://localhost:8080
+name: gridlock
+
 services:
   db:
     image: postgres:16-alpine
@@ -6,93 +18,81 @@ services:
       POSTGRES_DB: gridlock
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
-    ports:
-      - "127.0.0.1:5432:5432" # localhost only — see security note on adminer below
     volumes:
-      - gridlock_pg_data:/var/lib/postgresql/data
+      - pg_data:/var/lib/postgresql/data      # persistent: survives `docker compose down`
+    networks: [backend]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d gridlock"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  api:
-    build:
-      context: ./server
+  redis:
+    image: redis:7-alpine
     restart: unless-stopped
+    # AOF persistence so the "recent events" list survives a restart.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./server
+    image: gridlock-api:1.0.0
+    restart: unless-stopped
+    init: true
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://mlm_db_9vz9_user:7cngWFIXCpTlJadVgokQfYIVZDZo5Hfi@dpg-dabttdon74is738fb11g-a/mlm_db_9vz9
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-devpassword}@db:5432/gridlock
       PGSSL: "false"
-      PGPOOL_MAX: ${PGPOOL_MAX:-15}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8443}
+      PGPOOL_MAX: ${PGPOOL_MAX:-10}
+      REDIS_URL: redis://redis:6379
+      ALLOWED_ORIGINS: http://localhost:${WEB_PORT:-8080}
       JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-32chars}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-dev-admin-pass}
-      PORT: 4000
-    ports:
-      - "4000:4000"
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      COOKIE_SECURE: "false"
+      COOKIE_SAMESITE: lax
+      PORT: "4000"
+    # No host port and no container_name on purpose: several replicas can
+    # coexist (--scale api=N); only nginx reaches them, by service name.
+    expose: ["4000"]
+    networks: [frontend, backend]
 
   web:
-    build:
-      context: ./frontend
+    build: ./frontend
+    image: gridlock-web:1.0.0
     restart: unless-stopped
     depends_on:
       api:
         condition: service_healthy
-    environment:
-      # Read client-side by the browser, so this must be the URL the
-      # browser itself can reach — the host-published API port, not the
-      # in-network "api" hostname the containers use to talk to each other.
-      VITE_API_URL: https://mlm-backend-5j0n.onrender.com
-      PORT: 8443
     ports:
-      - "8443:8443"
-    volumes:
-      # Live-edit source on the host and see it reflected via Vite's HMR
-      # without rebuilding the image. The anonymous volume on
-      # node_modules keeps the container's own install from being
-      # shadowed by the host bind mount.
-      - ./frontend:/app
-      - /app/node_modules
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:8443').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - "${WEB_PORT:-8080}:8080"
+    networks: [frontend]
 
-  # Optional: a lightweight web UI for browsing the database, handy for
-  # eyeballing submissions during the event without curling the admin API.
-  # SECURITY: bound to 127.0.0.1 only (not 0.0.0.0) — Adminer has no
-  # login of its own beyond your Postgres password, and the default dev
-  # password here is weak. Without this restriction, anyone on the same
-  # venue WiFi as you could reach it. Remove this whole block if you
-  # don't want it at all — nothing else depends on it.
+  # Optional DB browser:  docker compose --profile tools up -d adminer
+  # Bound to localhost only (Adminer has no login beyond the DB password).
   adminer:
     image: adminer:4
+    profiles: [tools]
     restart: unless-stopped
-    depends_on:
-      - db
+    depends_on: [db]
     ports:
       - "127.0.0.1:8081:8080"
+    networks: [backend]
+
+networks:
+  frontend:   # web <-> api
+  backend:    # api <-> db / redis  (web has no route to the data tier)
 
 volumes:
-  gridlock_pg_data:
+  pg_data:
+  redis_data:

@@ -11,8 +11,7 @@ admin, and challenges). Frontend builds clean (`vite build`, zero
 errors). Full end-to-end flow re-verified live: register → submit →
 public roster updates → admin login → create challenge → ban team →
 banned team's login correctly rejected → live feed reflects it all in
-real time — all through real cross-origin requests matching how the
-deployed Vercel+Render split will actually behave.
+real time — all through real HTTP requests against a live server process.
 
 ### Bug caught during this round
 `ON CONFLICT (team_id)` failed with `there is no unique or exclusion

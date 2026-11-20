@@ -1,0 +1,23 @@
+# Requires the ingress-nginx controller:  minikube addons enable ingress
+# No "host" rule: reachable on http://<minikube ip>/ (or via `minikube tunnel` / port-forward).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gridlock
+  namespace: gridlock
+  annotations:
+    # /api/live is a long-lived Server-Sent Events stream.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port: { name: http }

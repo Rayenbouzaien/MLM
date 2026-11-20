@@ -1,4 +1,8 @@
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+// In the containerised stack the browser talks to the SAME origin as the page:
+// nginx (web container) proxies /api/* to the api service. So the default is
+// an empty base URL (relative requests). Set VITE_API_URL only for
+// `npm run dev` against a separately running API (e.g. http://localhost:4000).
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
 export class ApiError extends Error {
   status: number;

@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gridlock
+resources:
+  - 00-namespace.yaml
+  - 01-config.yaml
+  - 10-postgres.yaml
+  - 20-redis.yaml
+  - 30-api.yaml
+  - 40-web.yaml
+  - 50-ingress.yaml
+  - 60-hpa.yaml
+  - 70-networkpolicy.yaml

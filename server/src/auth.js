@@ -20,15 +20,18 @@ const ACCOUNT_COOKIE_NAME = "account_session";
 const ADMIN_COOKIE_NAME = "admin_session";
 const TOKEN_TTL = "12h";
 
-// Cross-site cookies (Vercel frontend + Render API, different domains)
-// need SameSite=None + Secure. Same-site local dev (localhost:8443 talking
-// to localhost:4000 is same-site — SameSite cares about domain, not port)
-// works fine with the friendlier Lax + non-Secure.
-const isProd = process.env.NODE_ENV === "production";
+// Cookie policy is configurable because it depends on how the stack is served:
+//  - web (nginx) proxies /api, so browser and API share one origin: the
+//    default SameSite=Lax works over plain HTTP (docker compose, Minikube).
+//  - behind HTTPS (e.g. an ALB / TLS Ingress) set COOKIE_SECURE=true.
+//  - only if the frontend lives on a different site than the API, set
+//    COOKIE_SAMESITE=none (browsers then require COOKIE_SECURE=true).
+const COOKIE_SECURE = process.env.COOKIE_SECURE === "true";
+const COOKIE_SAMESITE = process.env.COOKIE_SAMESITE || "lax";
 export const COOKIE_OPTS = {
   httpOnly: true,
-  secure: isProd,
-  sameSite: isProd ? "none" : "lax",
+  secure: COOKIE_SECURE,
+  sameSite: COOKIE_SAMESITE,
   maxAge: 12 * 60 * 60 * 1000,
   path: "/",
 };

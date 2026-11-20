@@ -1,0 +1,70 @@
+# Postgres as a StatefulSet: stable identity + its own PersistentVolumeClaim.
+# Deleting the pod (or scaling to 0) keeps the data; only deleting the PVC wipes it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  namespace: gridlock
+  labels: { app: db }
+spec:
+  clusterIP: None            # headless: DNS name "db" -> the pod
+  selector: { app: db }
+  ports:
+    - name: postgres
+      port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db
+  namespace: gridlock
+spec:
+  serviceName: db
+  replicas: 1                # a single primary (no streaming replication in this project)
+  selector:
+    matchLabels: { app: db }
+  template:
+    metadata:
+      labels: { app: db, app.kubernetes.io/part-of: gridlock }
+    spec:
+      securityContext:
+        fsGroup: 70          # "postgres" group in the alpine image -> volume is writable
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: gridlock
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: gridlock-secrets, key: POSTGRES_PASSWORD }
+            - name: PGDATA     # sub-directory: avoids the volume's lost+found
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres", "-d", "gridlock"]
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres", "-d", "gridlock"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 512Mi }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi     # Minikube: default "standard" StorageClass; EKS: gp3 / EBS CSI

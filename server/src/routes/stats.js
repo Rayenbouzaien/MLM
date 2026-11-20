@@ -29,14 +29,15 @@ router.get("/teams", async (req, res) => {
 
 // Server-Sent Events: pushes team_joined / submission events live to
 // the Paddock's "Pit Wall Feed" instead of static mock data.
-router.get("/live", (req, res) => {
+router.get("/live", async (req, res) => {
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
     Connection: "keep-alive",
+    "X-Accel-Buffering": "no", // tell nginx not to buffer the stream
   });
 
-  for (const event of getRecent()) {
+  for (const event of await getRecent()) {
     res.write(`data: ${JSON.stringify(event)}\n\n`);
   }
 

@@ -2,7 +2,6 @@ import { defineConfig, type HtmlTagDescriptor, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
-import fs from 'node:fs'
 
 import siteConfiguration from './.figma/make/site.json'
 
@@ -24,7 +23,6 @@ export default defineConfig(({ mode }) => {
       figmaErrorOverlayReplay(),
       figmaReactRefreshBoundaryFallback(),
       figmaMakeKitPlugin({ storiesGlob: '/src/**/*.stories.{ts,tsx,js,jsx}' }),
-      spaFallback404(),
     ],
     resolve: {
       alias: {
@@ -68,34 +66,6 @@ type FigmaSiteConfiguration = {
   }
   accessibility?: {
     addBypassLinks?: boolean
-  }
-}
-
-/**
- * Render's Redirects/Rewrites rules for static sites have been observed
- * to intermittently return empty (Content-Length: 0) responses for
- * rewritten paths, even though the destination file is served correctly
- * when requested directly (see render.com/docs/redirects-rewrites and
- * community reports of the same symptom). Rather than depend on that
- * rewrite rule for SPA client-side routes like /admin, this copies the
- * built index.html to dist/404.html on every build. Render (like GitHub
- * Pages and Cloudflare Pages) automatically serves a top-level 404.html
- * for any path with no matching static file, so this achieves the same
- * "serve the app shell for any client-side route" behavior without
- * depending on the rewrite feature at all.
- */
-function spaFallback404(): Plugin {
-  return {
-    name: 'spa-fallback-404',
-    apply: 'build',
-    closeBundle() {
-      const outDir = path.resolve(__dirname, 'dist')
-      const indexPath = path.join(outDir, 'index.html')
-      const fallbackPath = path.join(outDir, '404.html')
-      if (fs.existsSync(indexPath)) {
-        fs.copyFileSync(indexPath, fallbackPath)
-      }
-    },
   }
 }
 

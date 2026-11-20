@@ -1,7 +1,10 @@
 node_modules
 npm-debug.log
-.env
-.env.test
+.env*
 .git
 *.log
 tests
+*.md
+jest.config.js
+Dockerfile
+.dockerignore

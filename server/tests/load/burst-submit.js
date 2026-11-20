@@ -11,7 +11,7 @@
 //   Terminal 2: npm run test:load
 //
 // Or point it at a deployed instance:
-//   API_URL=https://your-service.onrender.com node tests/load/burst-submit.js
+//   API_URL=http://localhost:8080 node tests/load/burst-submit.js
 
 const API_URL = process.env.API_URL || "http://localhost:4000";
 const TEAM_COUNT = Number(process.env.TEAM_COUNT || 300);

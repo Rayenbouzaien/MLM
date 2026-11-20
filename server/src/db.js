@@ -7,16 +7,12 @@ const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
- * This is the actual fix for "300 people hit Submit and the DB falls over."
- *
- * Instead of opening a new Postgres connection per request (what kills a
- * naive serverless-per-request setup), this process opens ONE small pool
- * of connections at boot and reuses them for every request. When more
- * requests arrive than there are free connections, pg.Pool queues them
- * in memory and serves them as connections free up — it does NOT reject
- * or crash. Point DATABASE_URL at Neon's *pooled* connection string
- * (the one with "-pooler" in the hostname) and this pool sits on top of
- * Neon's own PgBouncer, so you get two layers of protection.
+ * One small pool of connections per process, reused for every request.
+ * When more requests arrive than there are free connections, pg.Pool
+ * queues them in memory instead of rejecting them. Each API replica holds
+ * at most PGPOOL_MAX connections, so total load on Postgres is
+ * replicas x PGPOOL_MAX (keep it under Postgres' max_connections, 100 by
+ * default).
  */
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -32,12 +28,25 @@ pool.on("error", (err) => {
   console.error("Unexpected error on idle PG client:", err);
 });
 
+// Several API replicas start at the same time on Kubernetes. A session-level
+// advisory lock makes them run migrations one after the other instead of
+// racing each other (the other replicas wait, then re-run the idempotent
+// migrations as no-ops).
+const MIGRATION_LOCK_ID = 727274;
+
 export async function runMigrations() {
   const dir = path.join(__dirname, "..", "migrations");
   const files = fs.readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
-  for (const file of files) {
-    // eslint-disable-next-line no-await-in-loop
-    await pool.query(fs.readFileSync(path.join(dir, file), "utf8"));
+  const client = await pool.connect();
+  try {
+    await client.query("SELECT pg_advisory_lock($1)", [MIGRATION_LOCK_ID]);
+    for (const file of files) {
+      // eslint-disable-next-line no-await-in-loop
+      await client.query(fs.readFileSync(path.join(dir, file), "utf8"));
+    }
+  } finally {
+    await client.query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK_ID]).catch(() => {});
+    client.release();
   }
 }
 
