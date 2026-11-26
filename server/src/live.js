@@ -48,6 +48,10 @@ if (process.env.REDIS_URL) {
     .catch((err) => console.error("Redis (sub) connect failed:", err.message));
 }
 
+export function getRedisClient() {
+  return pub && pub.isReady ? pub : null;
+}
+
 export function liveBackend() {
   return pub ? "redis" : "memory";
 }

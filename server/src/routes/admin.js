@@ -4,6 +4,7 @@ import { z } from "zod";
 import { pool } from "../db.js";
 import { setAdminSessionCookie, clearAdminSessionCookie, clearTeamSessionCookie, hashPassword, requireAdmin, timingSafeStringEqual } from "../auth.js";
 import { emit } from "../live.js";
+import { clusterSnapshot } from "../metrics.js";
 
 const router = Router();
 
@@ -44,6 +45,15 @@ router.get("/me", requireAdmin, (req, res) => {
 
 // The public Challenge Board intentionally does not expose which teams entered
 // which challenge. Race Control needs that operational view to manage the event.
+// Cluster-wide runtime metrics for the Scalability dashboard.
+router.get("/scalability", requireAdmin, async (req, res, next) => {
+  try {
+    res.json(await clusterSnapshot());
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get("/challenges", requireAdmin, async (req, res, next) => {
   try {
     const result = await pool.query(

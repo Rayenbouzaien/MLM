@@ -175,3 +175,20 @@ describe("Team management", () => {
     expect(subs.rows).toHaveLength(0);
   });
 });
+
+describe("GET /api/admin/scalability", () => {
+  it("requires an admin session", async () => {
+    await request(app).get("/api/admin/scalability").expect(401);
+  });
+
+  it("returns cluster metrics including this replica and recorded traffic", async () => {
+    const agent = await adminAgent();
+    await request(app).get("/api/stats").expect(200);
+    const res = await agent.get("/api/admin/scalability").expect(200);
+    expect(res.body.totals.replicas).toBeGreaterThanOrEqual(1);
+    expect(res.body.instances[0]).toHaveProperty("instance");
+    expect(res.body.totals.windowRequests).toBeGreaterThan(0);
+    expect(res.body.routes[0]).toMatchObject({ route: expect.stringMatching(/^[A-Z]+ \/api/), count: expect.any(Number) });
+    expect(res.body.hist.length).toBe(res.body.bucketsMs.length + 1);
+  });
+});

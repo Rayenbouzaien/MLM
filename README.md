@@ -103,3 +103,15 @@ k8s/        manifestes Kubernetes (kustomize)
 scripts/    k8s-up.sh · demo-scaling.sh · load-hpa.sh
 docker-compose.yml · Makefile · .env.example · RAPPORT.md
 ```
+
+## Tableau de bord de scalabilité
+
+`/admin` → onglet **Scalability** (session admin requise). Il montre en direct, pour tous les réplicas :
+réplicas actifs, req/s, latence p50/p95/p99 (histogramme), taux de 5xx, flux SSE ouverts, CPU / mémoire /
+lag de la boucle d'événements par réplica, pool de connexions, connexions Postgres, état de Redis,
+routes les plus sollicitées et journal des montées/descentes en charge (HPA ou `--scale`).
+
+Fonctionnement : chaque réplica garde une fenêtre glissante de 60 s (`server/src/metrics.js`) et publie un
+instantané dans Redis (`gridlock:metrics:<hostname>`, TTL 10 s) toutes les 3 s ; `GET /api/admin/scalability`
+agrège les instantanés vivants — un réplica qui meurt disparaît seul. Sans `REDIS_URL`, seul le processus
+courant est affiché. Pour voir le dashboard réagir : `make compose-scale` ou `make k8s-hpa-load`.

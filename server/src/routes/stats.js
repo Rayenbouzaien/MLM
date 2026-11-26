@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { pool } from "../db.js";
 import { getRecent, subscribe } from "../live.js";
+import { sseOpened, sseClosed } from "../metrics.js";
 
 const router = Router();
 
@@ -45,9 +46,11 @@ router.get("/live", async (req, res) => {
     res.write(`data: ${JSON.stringify(event)}\n\n`);
   });
 
+  sseOpened();
   const keepAlive = setInterval(() => res.write(":\n\n"), 25000);
 
   req.on("close", () => {
+    sseClosed();
     clearInterval(keepAlive);
     unsubscribe();
   });
