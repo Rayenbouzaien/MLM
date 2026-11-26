@@ -40,9 +40,23 @@ export async function runMigrations() {
   const client = await pool.connect();
   try {
     await client.query("SELECT pg_advisory_lock($1)", [MIGRATION_LOCK_ID]);
+    // Autoscaled replicas all boot through this function. Keep a durable
+    // record so a replica added during a load spike only checks migration
+    // state instead of replaying every (potentially locking) DDL statement.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS gridlock_schema_migrations (
+        filename TEXT PRIMARY KEY,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    const result = await client.query("SELECT filename FROM gridlock_schema_migrations");
+    const applied = new Set(result.rows.map((row) => row.filename));
     for (const file of files) {
+      if (applied.has(file)) continue;
       // eslint-disable-next-line no-await-in-loop
       await client.query(fs.readFileSync(path.join(dir, file), "utf8"));
+      // eslint-disable-next-line no-await-in-loop
+      await client.query("INSERT INTO gridlock_schema_migrations (filename) VALUES ($1) ON CONFLICT DO NOTHING", [file]);
     }
   } finally {
     await client.query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK_ID]).catch(() => {});

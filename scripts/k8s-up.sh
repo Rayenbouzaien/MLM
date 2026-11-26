@@ -23,11 +23,28 @@ minikube image load gridlock-web:1.0.0
 echo ">> Applying manifests"
 kubectl apply -k k8s
 
+# Secret values injected through envFrom are fixed when a pod starts. Recreate
+# the API pods after applying the Secret so password/JWT changes take effect
+# consistently on every replica.
+kubectl -n gridlock rollout restart deployment/api
+
+# The Minikube addon defaults to a 60 s scrape interval, which makes the HPA
+# look unresponsive during a short load test. Refresh metrics every 15 s.
+kubectl -n kube-system patch deployment metrics-server --type=json \
+  -p='[{"op":"replace","path":"/spec/template/spec/containers/0/args/4","value":"--metric-resolution=15s"}]'
+kubectl -n kube-system rollout status deployment/metrics-server --timeout=120s
+
 echo ">> Waiting for rollouts"
 kubectl -n gridlock rollout status statefulset/db --timeout=180s
 kubectl -n gridlock rollout status deployment/redis --timeout=120s
 kubectl -n gridlock rollout status deployment/api --timeout=180s
 kubectl -n gridlock rollout status deployment/web --timeout=120s
+
+echo ">> Waiting for fresh API resource metrics"
+for _ in $(seq 1 30); do
+  if kubectl -n gridlock top pods -l app=api >/dev/null 2>&1; then break; fi
+  sleep 2
+done
 
 kubectl -n gridlock get pods,svc,pvc,ingress,hpa
 echo

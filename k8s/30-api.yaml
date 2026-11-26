@@ -29,17 +29,20 @@ spec:
           envFrom:
             - configMapRef: { name: gridlock-config }
             - secretRef: { name: gridlock-secrets }
-          startupProbe:                    # migrations run at boot: allow up to ~60 s
+          startupProbe:                    # first boot/migration can be slow on small Minikube nodes
             httpGet: { path: /api/health, port: http }
-            periodSeconds: 3
-            failureThreshold: 20
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 12           # allow up to 120 s before restart
           readinessProbe:                  # in the Service only while the DB answers
             httpGet: { path: /api/ready, port: http }
             periodSeconds: 5
-            failureThreshold: 2
+            timeoutSeconds: 3
+            failureThreshold: 3
           livenessProbe:
             httpGet: { path: /api/health, port: http }
             periodSeconds: 10
+            timeoutSeconds: 3
             failureThreshold: 3
           lifecycle:
             preStop:

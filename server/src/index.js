@@ -5,9 +5,11 @@ import { closeLive } from "./live.js";
 
 const app = createApp();
 const PORT = process.env.PORT || 4000;
+const bootStartedAt = Date.now();
 
 runMigrations()
   .then(() => {
+    console.log(`Migrations checked in ${Date.now() - bootStartedAt}ms`);
     app.listen(PORT, () => {
       console.log(`API listening on :${PORT}`);
     });
