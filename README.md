@@ -115,3 +115,10 @@ Fonctionnement : chaque réplica garde une fenêtre glissante de 60 s (`server/s
 instantané dans Redis (`gridlock:metrics:<hostname>`, TTL 10 s) toutes les 3 s ; `GET /api/admin/scalability`
 agrège les instantanés vivants — un réplica qui meurt disparaît seul. Sans `REDIS_URL`, seul le processus
 courant est affiché. Pour voir le dashboard réagir : `make compose-scale` ou `make k8s-hpa-load`.
+
+### Onglet « Pods » (Kubernetes)
+Pods du namespace (statut, prêts, redémarrages + cause du dernier, CPU/mémoire vs requests/limits, nœud, âge),
+workloads (prêts/désirés), état du HPA (courant → désiré, CPU vs cible) et événements `Warning`.
+L'API lit l'API Kubernetes avec son propre ServiceAccount `api-observer`, en **lecture seule** et limité au
+namespace (`k8s/80-rbac.yaml`, appliqué par `kubectl apply -k k8s`). CPU/mémoire demandent metrics-server
+(déjà requis par le HPA). Hors Kubernetes (Compose), l'onglet l'indique au lieu d'échouer.

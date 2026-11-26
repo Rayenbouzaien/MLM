@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import { api, ApiError } from "../lib/api";
 import ScalabilityTab from "./ScalabilityTab";
+import PodsTab from "./PodsTab";
 import { CHALLENGE_ART_OPTIONS, getChallengeArtKey, getChallengeArtSource, type ChallengeArtKey } from "../lib/challenge-art";
 
 interface SelectedTeam { id: string; teamName: string; }
@@ -139,10 +140,10 @@ function TeamsTab() {
 }
 
 export default function AdminPage({ onSessionChange }: { onSessionChange?: (active: boolean) => void }) {
-  const [authed, setAuthed] = useState(false); const [checking, setChecking] = useState(true); const [tab, setTab] = useState<"challenges" | "teams" | "scalability">("challenges");
+  const [authed, setAuthed] = useState(false); const [checking, setChecking] = useState(true); const [tab, setTab] = useState<"challenges" | "teams" | "scalability" | "pods">("challenges");
   useEffect(() => { api.get("/api/admin/me").then(() => setAuthed(true)).catch(() => setAuthed(false)).finally(() => setChecking(false)); }, []);
   async function logout() { await api.post("/api/admin/logout").catch(() => {}); setAuthed(false); onSessionChange?.(false); }
   if (checking) return <main className="admin-access page-shell page-admin-login"><p className="admin-checking">Checking Race Control access…</p></main>;
   if (!authed) return <AdminLogin onLoggedIn={() => { setAuthed(true); onSessionChange?.(true); }} />;
-  return <main className="admin-console page-shell page-admin" aria-labelledby="admin-title"><div className="admin-console__shell"><header className="admin-console__header"><div><p>MLM 3.0 · Administrator</p><h1 id="admin-title">Race control</h1><span>Manage constructors, challenge briefs and confirmed programme entries.</span></div><button onClick={() => void logout()}>Log out</button></header><nav className="admin-tabs" aria-label="Race Control sections"><button aria-pressed={tab === "challenges"} onClick={() => setTab("challenges")}>Challenge board</button><button aria-pressed={tab === "teams"} onClick={() => setTab("teams")}>Constructors</button><button aria-pressed={tab === "scalability"} onClick={() => setTab("scalability")}>Scalability</button></nav>{tab === "challenges" ? <ChallengesTab /> : tab === "teams" ? <TeamsTab /> : <ScalabilityTab />}</div></main>;
+  return <main className="admin-console page-shell page-admin" aria-labelledby="admin-title"><div className="admin-console__shell"><header className="admin-console__header"><div><p>MLM 3.0 · Administrator</p><h1 id="admin-title">Race control</h1><span>Manage constructors, challenge briefs and confirmed programme entries.</span></div><button onClick={() => void logout()}>Log out</button></header><nav className="admin-tabs" aria-label="Race Control sections"><button aria-pressed={tab === "challenges"} onClick={() => setTab("challenges")}>Challenge board</button><button aria-pressed={tab === "teams"} onClick={() => setTab("teams")}>Constructors</button><button aria-pressed={tab === "scalability"} onClick={() => setTab("scalability")}>Scalability</button><button aria-pressed={tab === "pods"} onClick={() => setTab("pods")}>Pods</button></nav>{tab === "challenges" ? <ChallengesTab /> : tab === "teams" ? <TeamsTab /> : tab === "pods" ? <PodsTab /> : <ScalabilityTab />}</div></main>;
 }

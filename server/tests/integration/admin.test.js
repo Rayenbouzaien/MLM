@@ -192,3 +192,15 @@ describe("GET /api/admin/scalability", () => {
     expect(res.body.hist.length).toBe(res.body.bucketsMs.length + 1);
   });
 });
+
+describe("GET /api/admin/pods", () => {
+  it("requires an admin session", async () => {
+    await request(app).get("/api/admin/pods").expect(401);
+  });
+  it("reports unavailable outside Kubernetes instead of failing", async () => {
+    const agent = await adminAgent();
+    const res = await agent.get("/api/admin/pods").expect(200);
+    expect(res.body.available).toBe(false);
+    expect(res.body.reason).toMatch(/Kubernetes/);
+  });
+});

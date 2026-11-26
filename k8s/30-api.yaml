@@ -14,6 +14,7 @@ spec:
     metadata:
       labels: { app: api, app.kubernetes.io/part-of: gridlock }
     spec:
+      serviceAccountName: api-observer   # read-only pod view for /api/admin/pods (see 80-rbac.yaml)
       terminationGracePeriodSeconds: 30
       securityContext:
         runAsNonRoot: true

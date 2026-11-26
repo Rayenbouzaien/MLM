@@ -60,7 +60,7 @@ export function sseClosed() {
 
 export function metricsMiddleware(req, res, next) {
   // Dashboard polling and probes would drown out real traffic.
-  if (req.path === "/api/admin/scalability" || req.path === "/api/health" || req.path === "/api/ready") {
+  if (req.path === "/api/admin/scalability" || req.path === "/api/admin/pods" || req.path === "/api/health" || req.path === "/api/ready") {
     return next();
   }
   const start = process.hrtime.bigint();

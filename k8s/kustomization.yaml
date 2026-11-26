@@ -11,3 +11,4 @@ resources:
   - 50-ingress.yaml
   - 60-hpa.yaml
   - 70-networkpolicy.yaml
+  - 80-rbac.yaml

@@ -5,6 +5,7 @@ import { pool } from "../db.js";
 import { setAdminSessionCookie, clearAdminSessionCookie, clearTeamSessionCookie, hashPassword, requireAdmin, timingSafeStringEqual } from "../auth.js";
 import { emit } from "../live.js";
 import { clusterSnapshot } from "../metrics.js";
+import { fetchPodsView } from "../k8s.js";
 
 const router = Router();
 
@@ -49,6 +50,15 @@ router.get("/me", requireAdmin, (req, res) => {
 router.get("/scalability", requireAdmin, async (req, res, next) => {
   try {
     res.json(await clusterSnapshot());
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Kubernetes pods / workloads / HPA (read-only; available:false outside a cluster).
+router.get("/pods", requireAdmin, async (req, res, next) => {
+  try {
+    res.json(await fetchPodsView());
   } catch (err) {
     next(err);
   }
