@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 command -v minikube >/dev/null || { echo "minikube not found"; exit 1; }
 command -v kubectl  >/dev/null || { echo "kubectl not found";  exit 1; }
 
-minikube status >/dev/null 2>&1 || minikube start --cpus=2 --memory=4096
+minikube status >/dev/null 2>&1 || minikube start --cpus=2 --memory=3850
 minikube addons enable ingress
 minikube addons enable metrics-server
 

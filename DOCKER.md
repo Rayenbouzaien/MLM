@@ -13,7 +13,6 @@ gridlock/
 │   └── ...
 └── frontend/           # React + Vite app
     ├── Dockerfile
-    ├── .figma/make/site.json   # see note below
     └── ...
 ```
 
@@ -23,15 +22,6 @@ real POST /api/submissions call from the frontend's origin all succeeded)
 — Docker itself wasn't available there to run `docker compose up`
 literally, so **your `docker compose up --build` is still the real first
 run**, but this isn't a first-time-untested setup.
-
-## About `frontend/.figma/make/site.json`
-
-`vite.config.ts` statically imports this file for title/description/etc.
-It's managed by Figma Make's platform and isn't part of what gets shown
-as your project's source files, so it won't exist if you're running this
-outside Figma Make. I added a minimal stub with reasonable defaults —
-edit it or leave it, either is fine. Without *some* file there, `vite`
-fails immediately on startup with a "cannot find module" error.
 
 ## 1. Set up env vars
 
@@ -165,9 +155,5 @@ If you don't need Adminer at all, delete its whole block from
   exactly what the browser shows in its address bar (including port).
   Trailing slashes or `127.0.0.1` vs `localhost` mismatches will trip
   this, since CORS origin matching is exact-string.
-- **Frontend container fails to start with a "cannot find module
-  ./.figma/make/site.json" error** — that file got excluded somehow;
-  it needs to exist at `frontend/.figma/make/site.json` (see the note
-  above).
 - **Changed `server/` code, don't see it reflected** — that service isn't
   live-mounted; run `docker compose up --build`.
