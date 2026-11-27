@@ -73,7 +73,7 @@ kubectl -n gridlock get pvc                   # …sur le même PVC : les équip
 ```
 
 **Nettoyage** : `make k8s-down` (garde les PVC) · `make k8s-reset` (supprime tout, données incluses).
-
+`kubectl delete -k k8s --ignore-not-found --wait=false`
 > Passage à AWS EKS : mêmes manifestes ; pousser `gridlock-api`/`gridlock-web` sur ECR et adapter
 > `image:`, la StorageClass (gp3/EBS CSI) et l'Ingress (AWS Load Balancer Controller, `COOKIE_SECURE=true` derrière HTTPS).
 
